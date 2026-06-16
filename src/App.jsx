@@ -131,6 +131,86 @@ function App() {
             })}
           </div>
         </div>
+                  {/* Repayment planner */}
+        <div className="mt-6">
+          <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Repayment plan</p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-4">
+            
+            {/* Strategy toggle */}
+            <div className="flex gap-2 mb-4">
+              <button className="flex-1 py-2 rounded-xl bg-purple-600 text-white text-sm font-medium">
+                Avalanche
+              </button>
+              <button className="flex-1 py-2 rounded-xl bg-gray-100 text-gray-500 text-sm font-medium">
+                Snowball
+              </button>
+            </div>
+
+            {/* Strategy explanation */}
+            <p className="text-xs text-gray-400 mb-4">
+              Avalanche — pay the highest fee debt first. Saves you the most money overall.
+            </p>
+
+            {/* Ranked list */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-xs font-medium flex items-center justify-center flex-shrink-0">1</div>
+                <p className="text-sm text-gray-900 flex-1">Klarna — Nike trainers</p>
+                <p className="text-xs text-green-600 font-medium">Pay first</p>
+              </div>
+              <div className="h-px bg-gray-50"></div>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-xs font-medium flex items-center justify-center flex-shrink-0">2</div>
+                <p className="text-sm text-gray-900 flex-1">Clearpay — ASOS order</p>
+                <p className="text-xs text-green-600 font-medium">Saves £12</p>
+              </div>
+              <div className="h-px bg-gray-50"></div>
+              <div className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-600 text-xs font-medium flex items-center justify-center flex-shrink-0">3</div>
+                <p className="text-sm text-gray-900 flex-1">PayPal Pay in 3 — Boots</p>
+                <p className="text-xs text-green-600 font-medium">Saves £6</p>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* Risk checker */}
+        <div className="mt-6 mb-8">
+          <p className="text-sm text-gray-400 uppercase tracking-wide mb-3">Risk check</p>
+          <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+            
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-red-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-red-600 text-sm">⚠</span>
+              </div>
+              <p className="text-sm text-gray-500 flex-1">Klarna payment in 4 days — low balance detected</p>
+              <p className="text-xs font-medium text-red-600">High risk</p>
+            </div>
+
+            <div className="h-px bg-gray-50"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-green-600 text-sm">✓</span>
+              </div>
+              <p className="text-sm text-gray-500 flex-1">Clearpay on track for June payment</p>
+              <p className="text-xs font-medium text-green-600">Low risk</p>
+            </div>
+
+            <div className="h-px bg-gray-50"></div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
+                <span className="text-green-600 text-sm">✓</span>
+              </div>
+              <p className="text-sm text-gray-500 flex-1">PayPal payment not due until end of month</p>
+              <p className="text-xs font-medium text-green-600">Low risk</p>
+            </div>
+
+          </div>
+        </div>
+
 
       </main>
     </div>
