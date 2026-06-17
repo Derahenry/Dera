@@ -5,6 +5,7 @@ import AddDebt from './AddDebt'
 import PaymentCalendar from './PaymentCalendar'
 import RepaymentPlanner from './RepaymentPlanner'
 import RiskPredictor from './RiskPredictor'
+import WellbeingScore from './WellbeingScore'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -66,6 +67,7 @@ function App() {
     { id: 'calendar', label: 'Calendar' },
     { id: 'planner', label: 'Repayment' },
     { id: 'risk', label: 'Risk' },
+    { id: 'wellbeing', label: 'Wellbeing' },
   ]
 
   return (
@@ -195,6 +197,9 @@ function App() {
 
         {/* Risk predictor tab */}
         {activeTab === 'risk' && <RiskPredictor />}
+
+        {/* Wellbeing tab */}
+        {activeTab === 'wellbeing' && <WellbeingScore debts={debts} />}
 
       </main>
 
