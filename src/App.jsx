@@ -6,6 +6,7 @@ import PaymentCalendar from './PaymentCalendar'
 import RepaymentPlanner from './RepaymentPlanner'
 import RiskPredictor from './RiskPredictor'
 import WellbeingScore from './WellbeingScore'
+import LetterWriter from './LetterWriter'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -68,6 +69,7 @@ function App() {
     { id: 'planner', label: 'Repayment' },
     { id: 'risk', label: 'Risk' },
     { id: 'wellbeing', label: 'Wellbeing' },
+    { id: 'letter', label: 'Letter' },
   ]
 
   return (
@@ -94,12 +96,12 @@ function App() {
 
       {/* Tab bar */}
       <div className="bg-white border-b border-gray-100 px-6">
-        <div className="max-w-2xl mx-auto flex gap-6">
+        <div className="max-w-2xl mx-auto flex gap-6 overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-purple-600 text-purple-600'
                   : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -200,6 +202,9 @@ function App() {
 
         {/* Wellbeing tab */}
         {activeTab === 'wellbeing' && <WellbeingScore debts={debts} />}
+
+        {/* Letter writer tab */}
+        {activeTab === 'letter' && <LetterWriter debts={debts} />}
 
       </main>
 
