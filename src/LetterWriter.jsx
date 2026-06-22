@@ -21,8 +21,9 @@ function LetterWriter({ debts }) {
     setLetter('')
 
     const debt = debts.find(d => d.id === selectedDebt)
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
-    const prompt = `You are a professional debt advisor in the UK. Write a formal, polite hardship letter from a customer to ${PROVIDERS[debt.provider] || debt.provider}. 
+    const prompt = `You are a professional debt advisor in the UK. Write a formal, polite hardship letter from a customer to ${PROVIDERS[debt.provider] || debt.provider}.
 
 The customer details:
 - Provider: ${debt.provider}
@@ -34,18 +35,21 @@ The customer details:
 Write a short, professional letter requesting a payment extension of 14 days. The tone should be polite, honest, and respectful. Do not include a subject line. Start with "Dear ${PROVIDERS[debt.provider] || debt.provider}," and end with "Yours sincerely," followed by a blank line for their name. Keep it under 200 words.`
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 1000,
+          model: 'llama-3.3-70b-versatile',
           messages: [{ role: 'user', content: prompt }],
+          max_tokens: 500,
         }),
       })
 
       const data = await response.json()
-      const text = data.content?.find(b => b.type === 'text')?.text || ''
+      const text = data.choices?.[0]?.message?.content || ''
       setLetter(text)
     } catch (err) {
       setLetter('Something went wrong. Please try again.')
