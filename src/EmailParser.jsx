@@ -12,7 +12,7 @@ function EmailParser({ onDebtParsed }) {
     setParsed(null)
     setError('')
 
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY
+    const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
     const prompt = `You are a financial data extractor. Read the following BNPL (Buy Now Pay Later) email and extract the key details.
 
@@ -33,19 +33,21 @@ If any field cannot be determined from the email, use these defaults: instalment
 Return ONLY the JSON object, no explanation, no markdown, no code blocks.`
 
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      )
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 300,
+        }),
+      })
 
       const data = await response.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+      const text = data.choices?.[0]?.message?.content || ''
       const clean = text.replace(/```json|```/g, '').trim()
       const result = JSON.parse(clean)
       setParsed(result)

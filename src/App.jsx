@@ -7,6 +7,7 @@ import RepaymentPlanner from './RepaymentPlanner'
 import RiskPredictor from './RiskPredictor'
 import WellbeingScore from './WellbeingScore'
 import LetterWriter from './LetterWriter'
+import EmailParser from './EmailParser'
 
 function App() {
   const [session, setSession] = useState(null)
@@ -37,6 +38,24 @@ function App() {
 
     if (!error) setDebts(data)
     setLoading(false)
+  }
+
+  const handleParsedDebt = async (parsedDebt) => {
+    const { error } = await supabase.from('debts').insert([{
+      provider: parsedDebt.provider,
+      item: parsedDebt.item,
+      total: parsedDebt.total,
+      due_date: parsedDebt.due_date,
+      instalments: parsedDebt.instalments,
+      paid: parsedDebt.paid,
+      status: 'on-track',
+      user_id: session.user.id,
+    }])
+
+    if (!error) {
+      fetchDebts()
+      setActiveTab('dashboard')
+    }
   }
 
   const totalDebt = debts.reduce((sum, d) => sum + Number(d.total), 0)
@@ -70,6 +89,7 @@ function App() {
     { id: 'risk', label: 'Risk' },
     { id: 'wellbeing', label: 'Wellbeing' },
     { id: 'letter', label: 'Letter' },
+    { id: 'email', label: 'Email Parser' },
   ]
 
   return (
@@ -205,6 +225,9 @@ function App() {
 
         {/* Letter writer tab */}
         {activeTab === 'letter' && <LetterWriter debts={debts} />}
+
+        {/* Email parser tab */}
+        {activeTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} />}
 
       </main>
 
