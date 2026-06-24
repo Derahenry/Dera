@@ -1,1 +1,24 @@
 @import "tailwindcss";
+@variant dark (&:where(.dark, .dark *));
+
+.app-bg {
+  background: linear-gradient(160deg, #f0efff 0%, #f8f7ff 40%, #ffffff 100%);
+}
+
+.dark .app-bg {
+  background: #0F172A;
+}
+
+.nav-bg {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.04), 0 8px 32px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.dark .nav-bg {
+  background: rgba(15, 23, 42, 0.88);
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}

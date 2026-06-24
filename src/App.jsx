@@ -79,7 +79,7 @@ function NavIcon({ tab, active }) {
   }
 
   return (
-    <div className={`transition-colors ${active ? 'text-purple-600' : 'text-gray-400'}`}>
+    <div className={`transition-colors ${active ? 'text-purple-600' : 'text-gray-400 dark:text-slate-500'}`}>
       {icons[tab]}
     </div>
   )
@@ -96,6 +96,20 @@ function App() {
   const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
+  const [theme, setTheme] = useState(() => localStorage.getItem('dera-theme') || 'light')
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark')
+    } else if (theme === 'light') {
+      document.documentElement.classList.remove('dark')
+    } else {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      if (isDark) document.documentElement.classList.add('dark')
+      else document.documentElement.classList.remove('dark')
+    }
+    localStorage.setItem('dera-theme', theme)
+  }, [theme])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -170,15 +184,13 @@ function App() {
   ]
 
   return (
-    <div className="min-h-screen pb-24" style={{
-      background: 'linear-gradient(160deg, #f0efff 0%, #f8f7ff 40%, #ffffff 100%)'
-    }}>
+    <div className="min-h-screen pb-24 app-bg">
 
       {/* Top header */}
       <div className="px-6 pt-12 pb-4 flex items-start justify-between">
         <div>
-          <p className="text-gray-500 text-sm">{getGreeting()}</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-gray-500 dark:text-slate-400 text-sm">{getGreeting()}</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">
             {session?.user?.user_metadata?.full_name || 'Amara'}
           </p>
         </div>
@@ -196,7 +208,6 @@ function App() {
             <div className="rounded-3xl p-6 text-white relative overflow-hidden" style={{
               background: 'linear-gradient(135deg, #5B4FE8 0%, #7B6FF0 60%, #9B8FF8 100%)'
             }}>
-              {/* Decorative circle */}
               <div className="absolute -right-8 -top-8 w-40 h-40 rounded-full opacity-20" style={{ background: 'rgba(255,255,255,0.3)' }} />
               <div className="absolute -right-4 top-12 w-24 h-24 rounded-full opacity-10" style={{ background: 'rgba(255,255,255,0.5)' }} />
 
@@ -226,7 +237,7 @@ function App() {
               return (
                 <button
                   onClick={() => { setActiveTab('insights'); setInsightsTab('wellbeing') }}
-                  className="w-full mt-3 bg-white rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-gray-100"
+                  className="w-full mt-3 bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-slate-700"
                 >
                   <div className="relative w-12 h-12 flex-shrink-0">
                     <svg width="48" height="48" viewBox="0 0 48 48">
@@ -238,10 +249,10 @@ function App() {
                     <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{score}</span>
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-gray-900">Wellbeing score</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{label} · tap for breakdown</p>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Wellbeing score</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{label} · tap for breakdown</p>
                   </div>
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" className="text-gray-300">
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" className="text-gray-300 dark:text-slate-600">
                     <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                   </svg>
                 </button>
@@ -252,20 +263,20 @@ function App() {
             {dueThisWeek.length > 0 && (
               <div className="mt-5">
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-gray-900">This week</p>
-                  <button onClick={() => setActiveTab('calendar')} className="text-xs text-indigo-600 font-medium">Calendar ›</button>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">This week</p>
+                  <button onClick={() => setActiveTab('calendar')} className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">Calendar ›</button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-1">
                   {dueThisWeek.map(debt => {
                     const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
                     const color = providerColors[debt.provider] || '#8B5CF6'
                     return (
-                      <div key={debt.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex-shrink-0 min-w-32">
+                      <div key={debt.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 flex-shrink-0 min-w-32">
                         <div className="flex items-center gap-1.5 mb-2">
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                          <p className="text-xs text-gray-500">{debt.provider}</p>
+                          <p className="text-xs text-gray-500 dark:text-slate-400">{debt.provider}</p>
                         </div>
-                        <p className="text-lg font-bold text-gray-900">£{Number(debt.total).toFixed(2)}</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
                         <p className="text-xs mt-1 font-medium" style={{ color: days <= 3 ? '#DC2626' : '#D97706' }}>
                           {days === 0 ? 'Due today' : `${days} day${days === 1 ? '' : 's'} left`}
                         </p>
@@ -278,37 +289,37 @@ function App() {
 
             {/* By provider */}
             <div className="mt-5">
-              <p className="text-sm font-semibold text-gray-900 mb-3">By provider</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">By provider</p>
               {loading ? (
-                <div className="bg-white rounded-2xl p-8 flex justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-indigo-600 animate-spin" />
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-slate-600 border-t-indigo-600 animate-spin" />
                 </div>
               ) : fetchError ? (
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col items-center text-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-gray-100 dark:border-slate-700 shadow-sm flex flex-col items-center text-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-900/20 flex items-center justify-center flex-shrink-0">
                     <svg width="18" height="18" fill="none" viewBox="0 0 24 24" className="text-red-500">
                       <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
                       <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                     </svg>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800">Something went wrong</p>
-                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{fetchError}</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white">Something went wrong</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-400 mt-1 leading-relaxed">{fetchError}</p>
                   </div>
                   <button
                     onClick={fetchDebts}
-                    className="mt-1 px-5 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors"
+                    className="mt-1 px-5 py-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                   >
                     Try again
                   </button>
                 </div>
               ) : debts.length === 0 ? (
-                <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-                  <p className="text-gray-400 text-sm">No debts added yet</p>
-                  <p className="text-gray-300 text-xs mt-1">Tap + to get started</p>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-slate-700">
+                  <p className="text-gray-400 dark:text-slate-500 text-sm">No debts added yet</p>
+                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Tap + to get started</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
                   {debts.map((debt) => {
                     const color = providerColors[debt.provider] || '#8B5CF6'
                     const progress = (debt.paid / debt.instalments) * 100
@@ -317,13 +328,13 @@ function App() {
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
-                            <p className="text-sm font-medium text-gray-900">{debt.provider}</p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">{debt.provider}</p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <p className="text-sm font-semibold text-gray-900">£{Number(debt.total).toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
                             <button
                               onClick={() => setEditingDebt(debt)}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 text-gray-400 hover:bg-indigo-50 hover:text-indigo-500 transition-colors"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-500 transition-colors"
                               aria-label="Edit debt"
                             >
                               <svg width="13" height="13" fill="none" viewBox="0 0 24 24">
@@ -342,8 +353,8 @@ function App() {
                             </button>
                           </div>
                         </div>
-                        <p className="text-xs text-gray-400 mb-2 ml-4">{debt.item}</p>
-                        <div className="ml-4 h-1 bg-gray-100 rounded-full overflow-hidden">
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mb-2 ml-4">{debt.item}</p>
+                        <div className="ml-4 h-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: color }} />
                         </div>
                       </div>
@@ -358,7 +369,7 @@ function App() {
         {/* ── CALENDAR ─────────────────────────────────────────── */}
         {activeTab === 'calendar' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Payment Calendar</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Payment Calendar</h2>
             <PaymentCalendar />
           </div>
         )}
@@ -366,9 +377,8 @@ function App() {
         {/* ── INSIGHTS ─────────────────────────────────────────── */}
         {activeTab === 'insights' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Insights</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Insights</h2>
 
-            {/* Sub tabs */}
             <div className="flex gap-2 mb-5">
               {[{ id: 'wellbeing', label: 'Wellbeing' }, { id: 'risk', label: 'Risk' }, { id: 'planner', label: 'Repayment' }].map(t => (
                 <button
@@ -377,7 +387,7 @@ function App() {
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     insightsTab === t.id
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-500 border border-gray-200'
+                      : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-600'
                   }`}
                 >
                   {t.label}
@@ -394,9 +404,8 @@ function App() {
         {/* ── TOOLS ────────────────────────────────────────────── */}
         {activeTab === 'tools' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Tools</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Tools</h2>
 
-            {/* Sub tabs */}
             <div className="flex gap-2 mb-5">
               {[{ id: 'letter', label: 'Letter Writer' }, { id: 'email', label: 'Email Parser' }].map(t => (
                 <button
@@ -405,7 +414,7 @@ function App() {
                   className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                     toolsTab === t.id
                       ? 'bg-indigo-600 text-white'
-                      : 'bg-white text-gray-500 border border-gray-200'
+                      : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-600'
                   }`}
                 >
                   {t.label}
@@ -421,13 +430,13 @@ function App() {
         {/* ── SETTINGS ─────────────────────────────────────────── */}
         {activeTab === 'settings' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Settings</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Settings</h2>
 
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
               <div className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Account</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{session?.user?.email}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Account</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{session?.user?.email}</p>
                 </div>
                 <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
                   {userInitial}
@@ -436,18 +445,71 @@ function App() {
 
               <div className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Appearance</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Light mode</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Appearance</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">
+                    {theme === 'light' ? 'Light mode' : theme === 'dark' ? 'Dark mode' : 'System default'}
+                  </p>
                 </div>
-                <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-medium">Coming soon</span>
+                <button
+                  onClick={() => setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light')}
+                  className="relative w-24 h-8 rounded-full transition-colors duration-300 flex items-center px-1"
+                  style={{
+                    background: theme === 'light' ? '#f3f4f6' : theme === 'dark' ? '#312e81' : '#1e293b',
+                  }}
+                  aria-label="Toggle theme"
+                >
+                  {/* Three stop markers */}
+                  {[
+                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-amber-400"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: '16px' },
+                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-indigo-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>, pos: '50%' },
+                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-slate-400"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: 'calc(100% - 16px)' },
+                  ].map(({ icon, pos }, i) => (
+                    <span
+                      key={i}
+                      className="absolute pointer-events-none select-none flex items-center justify-center opacity-50"
+                      style={{ left: pos, transform: 'translateX(-50%)' }}
+                    >
+                      {icon}
+                    </span>
+                  ))}
+                  {/* Sliding thumb */}
+                  <span
+                    className="relative z-10 w-6 h-6 rounded-full shadow-md flex items-center justify-center transition-transform duration-300 bg-white"
+                    style={{
+                      transform: theme === 'light'
+                        ? 'translateX(0px)'
+                        : theme === 'dark'
+                        ? 'translateX(32px)'
+                        : 'translateX(64px)',
+                    }}
+                  >
+                    {theme === 'light' && (
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-amber-500">
+                        <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                    {theme === 'dark' && (
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-indigo-500">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/>
+                      </svg>
+                    )}
+                    {theme === 'system' && (
+                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-slate-500">
+                        <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
+                        <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      </svg>
+                    )}
+                  </span>
+                </button>
               </div>
 
               <div className="p-4 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">Notifications</p>
-                  <p className="text-xs text-gray-400 mt-0.5">Payment reminders</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white">Notifications</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">Payment reminders</p>
                 </div>
-                <span className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full font-medium">Coming soon</span>
+                <span className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-full font-medium">Coming soon</span>
               </div>
 
               <button
@@ -458,7 +520,7 @@ function App() {
               </button>
             </div>
 
-            <p className="text-center text-xs text-gray-300 mt-6">DERA · Version 1.0</p>
+            <p className="text-center text-xs text-gray-300 dark:text-slate-600 mt-6">DERA · Version 1.0</p>
           </div>
         )}
 
@@ -476,15 +538,7 @@ function App() {
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="mx-auto max-w-lg px-4 pb-6 pt-2">
-          <div className="rounded-2xl px-2 py-2 flex items-center justify-around"
-            style={{
-              background: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              boxShadow: '0 -1px 0 rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.12)',
-              border: '1px solid rgba(255,255,255,0.6)',
-            }}
-          >
+          <div className="nav-bg rounded-2xl px-2 py-2 flex items-center justify-around">
             {navTabs.map(tab => {
               const active = activeTab === tab.id
               return (
@@ -494,11 +548,10 @@ function App() {
                   className="flex flex-col items-center gap-1 px-2 py-1 transition-all"
                 >
                   <NavIcon tab={tab.id} active={active} />
-                  {/* Glassy bubble label */}
                   <div className={`transition-all duration-200 ${
                     active
                       ? 'px-3 py-0.5 rounded-full text-indigo-600 font-semibold'
-                      : 'text-gray-400'
+                      : 'text-gray-400 dark:text-slate-500'
                     }`}
                     style={active ? {
                       background: 'rgba(99, 102, 241, 0.12)',
@@ -521,35 +574,31 @@ function App() {
       {confirmDelete.show && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-6"
-          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+          style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
           onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
         >
           <div
-            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
-            {/* Trash icon in red circle */}
             <div className="flex justify-center mb-4">
-              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
                 <svg width="24" height="24" fill="none" viewBox="0 0 24 24" className="text-red-500">
                   <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
             </div>
 
-            {/* Title */}
-            <h2 className="text-lg font-bold text-gray-900 text-center">Remove debt?</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white text-center">Remove debt?</h2>
 
-            {/* Subtitle */}
-            <p className="text-sm text-gray-400 text-center mt-2 leading-relaxed">
-              This will remove <span className="text-gray-600 font-medium">{confirmDelete.debtName}</span> from your DERA
+            <p className="text-sm text-gray-400 dark:text-slate-400 text-center mt-2 leading-relaxed">
+              This will remove <span className="text-gray-600 dark:text-slate-300 font-medium">{confirmDelete.debtName}</span> from your DERA
             </p>
 
-            {/* Buttons */}
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
-                className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+                className="flex-1 py-2.5 rounded-2xl bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
               >
                 Cancel
               </button>
