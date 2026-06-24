@@ -91,7 +91,11 @@ function WellbeingScore() {
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (score / 100) * circumference
 
-  if (loading) return <p className="text-gray-400 text-sm text-center py-8">Calculating your score...</p>
+  if (loading) return (
+    <div className="flex justify-center py-8">
+      <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-indigo-600 animate-spin" />
+    </div>
+  )
 
   return (
     <div>

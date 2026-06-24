@@ -274,8 +274,8 @@ function App() {
             <div className="mt-5">
               <p className="text-sm font-semibold text-gray-900 mb-3">By provider</p>
               {loading ? (
-                <div className="bg-white rounded-2xl p-6 text-center">
-                  <p className="text-sm text-gray-400">Loading your debts...</p>
+                <div className="bg-white rounded-2xl p-8 flex justify-center">
+                  <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-indigo-600 animate-spin" />
                 </div>
               ) : debts.length === 0 ? (
                 <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
