@@ -95,6 +95,7 @@ function App() {
   const [insightsTab, setInsightsTab] = useState('wellbeing')
   const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
   const [editingDebt, setEditingDebt] = useState(null)
+  const [fetchError, setFetchError] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -111,11 +112,16 @@ function App() {
 
   const fetchDebts = async () => {
     setLoading(true)
+    setFetchError(null)
     const { data, error } = await supabase
       .from('debts')
       .select('*')
       .order('due_date', { ascending: true })
-    if (!error) setDebts(data)
+    if (error) {
+      setFetchError('Could not load your debts. Please check your connection and try again.')
+    } else {
+      setDebts(data)
+    }
     setLoading(false)
   }
 
@@ -276,6 +282,25 @@ function App() {
               {loading ? (
                 <div className="bg-white rounded-2xl p-8 flex justify-center">
                   <div className="w-6 h-6 rounded-full border-2 border-gray-200 border-t-indigo-600 animate-spin" />
+                </div>
+              ) : fetchError ? (
+                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col items-center text-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                    <svg width="18" height="18" fill="none" viewBox="0 0 24 24" className="text-red-500">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">Something went wrong</p>
+                    <p className="text-xs text-gray-400 mt-1 leading-relaxed">{fetchError}</p>
+                  </div>
+                  <button
+                    onClick={fetchDebts}
+                    className="mt-1 px-5 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-medium hover:bg-red-100 transition-colors"
+                  >
+                    Try again
+                  </button>
                 </div>
               ) : debts.length === 0 ? (
                 <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
