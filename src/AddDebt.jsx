@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
 
-function AddDebt({ onDebtAdded, onClose }) {
-  const [provider, setProvider] = useState('Klarna')
-  const [item, setItem] = useState('')
-  const [total, setTotal] = useState('')
-  const [instalments, setInstalments] = useState('3')
-  const [dueDate, setDueDate] = useState('')
+function AddDebt({ onDebtAdded, onClose, existingDebt }) {
+  const [provider, setProvider] = useState(existingDebt?.provider || 'Klarna')
+  const [item, setItem] = useState(existingDebt?.item || '')
+  const [total, setTotal] = useState(existingDebt ? String(existingDebt.total) : '')
+  const [instalments, setInstalments] = useState(existingDebt ? String(existingDebt.instalments) : '3')
+  const [dueDate, setDueDate] = useState(existingDebt?.due_date || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -14,24 +14,41 @@ function AddDebt({ onDebtAdded, onClose }) {
     setLoading(true)
     setError('')
 
-    const { data: { user } } = await supabase.auth.getUser()
+    if (existingDebt) {
+      const { error } = await supabase.from('debts').update({
+        provider,
+        item,
+        total: parseFloat(total),
+        instalments: parseInt(instalments),
+        due_date: dueDate,
+      }).eq('id', existingDebt.id)
 
-    const { error } = await supabase.from('debts').insert({
-      user_id: user.id,
-      provider,
-      item,
-      total: parseFloat(total),
-      instalments: parseInt(instalments),
-      paid: 0,
-      due_date: dueDate,
-      status: 'on-track'
-    })
-
-    if (error) {
-      setError(error.message)
+      if (error) {
+        setError(error.message)
+      } else {
+        onDebtAdded()
+        onClose()
+      }
     } else {
-      onDebtAdded()
-      onClose()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { error } = await supabase.from('debts').insert({
+        user_id: user.id,
+        provider,
+        item,
+        total: parseFloat(total),
+        instalments: parseInt(instalments),
+        paid: 0,
+        due_date: dueDate,
+        status: 'on-track'
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        onDebtAdded()
+        onClose()
+      }
     }
 
     setLoading(false)
@@ -40,9 +57,9 @@ function AddDebt({ onDebtAdded, onClose }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end justify-center z-50">
       <div className="bg-white w-full max-w-2xl rounded-t-3xl p-6">
-        
+
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-900">Add a debt</h2>
+          <h2 className="text-lg font-medium text-gray-900">{existingDebt ? 'Edit debt' : 'Add a debt'}</h2>
           <button onClick={onClose} className="text-gray-400 text-sm">Cancel</button>
         </div>
 
@@ -120,7 +137,7 @@ function AddDebt({ onDebtAdded, onClose }) {
           disabled={loading || !item || !total || !dueDate}
           className="w-full py-3 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Saving...' : 'Add debt'}
+          {loading ? 'Saving...' : existingDebt ? 'Update debt' : 'Add debt'}
         </button>
 
       </div>
