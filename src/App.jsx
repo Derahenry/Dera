@@ -93,6 +93,7 @@ function App() {
   const [activeTab, setActiveTab] = useState('home')
   const [toolsTab, setToolsTab] = useState('letter')
   const [insightsTab, setInsightsTab] = useState('wellbeing')
+  const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -115,6 +116,12 @@ function App() {
       .order('due_date', { ascending: true })
     if (!error) setDebts(data)
     setLoading(false)
+  }
+
+  const deleteDebt = async () => {
+    await supabase.from('debts').delete().eq('id', confirmDelete.debtId)
+    fetchDebts()
+    setConfirmDelete({ show: false, debtId: null, debtName: '' })
   }
 
   const handleParsedDebt = async (parsedDebt) => {
@@ -286,7 +293,18 @@ function App() {
                             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
                             <p className="text-sm font-medium text-gray-900">{debt.provider}</p>
                           </div>
-                          <p className="text-sm font-semibold text-gray-900">£{Number(debt.total).toFixed(2)}</p>
+                          <div className="flex items-center gap-3">
+                            <p className="text-sm font-semibold text-gray-900">£{Number(debt.total).toFixed(2)}</p>
+                            <button
+                              onClick={() => setConfirmDelete({ show: true, debtId: debt.id, debtName: `${debt.provider} — ${debt.item}` })}
+                              className="text-red-400 hover:text-red-600 transition-colors"
+                              aria-label="Delete debt"
+                            >
+                              <svg width="15" height="15" fill="none" viewBox="0 0 24 24">
+                                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                         <p className="text-xs text-gray-400 mb-2 ml-4">{debt.item}</p>
                         <div className="ml-4 h-1 bg-gray-100 rounded-full overflow-hidden">
@@ -462,6 +480,53 @@ function App() {
           </div>
         </div>
       </div>
+
+      {/* Confirm delete modal */}
+      {confirmDelete.show && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+          onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Trash icon in red circle */}
+            <div className="flex justify-center mb-4">
+              <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+                <svg width="24" height="24" fill="none" viewBox="0 0 24 24" className="text-red-500">
+                  <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* Title */}
+            <h2 className="text-lg font-bold text-gray-900 text-center">Remove debt?</h2>
+
+            {/* Subtitle */}
+            <p className="text-sm text-gray-400 text-center mt-2 leading-relaxed">
+              This will remove <span className="text-gray-600 font-medium">{confirmDelete.debtName}</span> from your DERA
+            </p>
+
+            {/* Buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
+                className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteDebt}
+                className="flex-1 py-2.5 rounded-2xl bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add debt modal */}
       {showAddDebt && (
