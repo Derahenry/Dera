@@ -97,6 +97,8 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('dera-onboarded'))
   const [onboardingSlide, setOnboardingSlide] = useState(0)
   const onboardingTouchStart = useRef(null)
+  const [showSplash, setShowSplash] = useState(true)
+  const [splashFading, setSplashFading] = useState(false)
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -110,6 +112,12 @@ function App() {
     }
     localStorage.setItem('dera-theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    const fadeTimer = setTimeout(() => setSplashFading(true), 2200)
+    const hideTimer = setTimeout(() => setShowSplash(false), 2700)
+    return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer) }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -204,6 +212,29 @@ function App() {
   )
 
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'A'
+
+  if (showSplash) return (
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center"
+      style={{
+        background: document.documentElement.classList.contains('dark')
+          ? '#0F172A'
+          : 'linear-gradient(160deg, #f0efff 0%, #f8f7ff 40%, #ffffff 100%)',
+        opacity: splashFading ? 0 : 1,
+        transition: 'opacity 0.5s ease',
+      }}
+    >
+      <p style={{ fontSize: 48, fontWeight: 700, color: '#4F46E5', letterSpacing: '-1px', lineHeight: 1, fontFamily: "'Space Grotesk', sans-serif" }}>
+        DERA
+      </p>
+      <div
+        className="mt-6 rounded-full overflow-hidden"
+        style={{ width: 80, height: 3, background: document.documentElement.classList.contains('dark') ? '#1e293b' : '#e0e7ff' }}
+      >
+        <div className="h-full rounded-full splash-bar" style={{ background: '#4F46E5' }} />
+      </div>
+    </div>
+  )
 
   if (!session) return <Auth />
 
@@ -347,7 +378,7 @@ function App() {
       <div className="px-6 pt-12 pb-4 flex items-start justify-between">
         <div>
           <p className="text-gray-500 dark:text-slate-400 text-sm">{getGreeting()}</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white">
+          <p className="text-2xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
             {session?.user?.user_metadata?.full_name || 'Amara'}
           </p>
         </div>
@@ -369,7 +400,7 @@ function App() {
               <div className="absolute -right-4 top-12 w-24 h-24 rounded-full opacity-10" style={{ background: 'rgba(255,255,255,0.5)' }} />
 
               <p className="text-purple-200 text-sm font-medium">Total outstanding</p>
-              <p className="text-4xl font-bold mt-1 tracking-tight">£{totalDebt.toFixed(2)}</p>
+              <p className="text-4xl font-bold mt-1 tracking-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>£{totalDebt.toFixed(2)}</p>
 
               <div className="flex gap-6 mt-5 pt-5 border-t border-white border-opacity-20">
                 <div>
@@ -583,7 +614,7 @@ function App() {
         {activeTab === 'calendar' && (
           <div className="mt-2">
             <div className="mb-5">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Payments</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Payments</h2>
               <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
                 £{totalDebt.toFixed(2)} across {debts.length} upcoming date{debts.length !== 1 ? 's' : ''}
               </p>
@@ -707,7 +738,7 @@ function App() {
                   />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{wellbeingScore}</span>
+                  <span className="text-3xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{wellbeingScore}</span>
                   <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">out of 100</span>
                 </div>
               </div>
@@ -820,7 +851,7 @@ function App() {
         {/* ── TOOLS ────────────────────────────────────────────── */}
         {activeTab === 'tools' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Tools</h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Tools</h2>
 
             {/* Segmented pill switcher */}
             <div className="p-1 bg-gray-100 dark:bg-slate-700 rounded-[14px] flex mb-5">
@@ -854,7 +885,7 @@ function App() {
                 {userInitial}
               </div>
               <div className="min-w-0">
-                <p className="font-bold text-gray-900 dark:text-white truncate" style={{ fontSize: 17 }}>
+                <p className="font-bold text-gray-900 dark:text-white truncate" style={{ fontSize: 17, fontFamily: "'Space Grotesk', sans-serif" }}>
                   {session?.user?.user_metadata?.full_name || 'Your account'}
                 </p>
                 <p className="text-sm text-gray-400 dark:text-slate-400 mt-0.5 truncate">{session?.user?.email}</p>

@@ -36,3 +36,13 @@
   stroke-dashoffset: 440;
   animation: score-ring-draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+@keyframes splash-fill {
+  from { width: 0%; }
+  to   { width: 100%; }
+}
+
+.splash-bar {
+  width: 0%;
+  animation: splash-fill 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
