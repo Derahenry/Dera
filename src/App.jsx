@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import Auth from './Auth'
 import AddDebt from './AddDebt'
@@ -97,6 +97,9 @@ function App() {
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
   const [theme, setTheme] = useState(() => localStorage.getItem('dera-theme') || 'light')
+  const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('dera-onboarded'))
+  const [onboardingSlide, setOnboardingSlide] = useState(0)
+  const onboardingTouchStart = useRef(null)
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -145,6 +148,11 @@ function App() {
     setConfirmDelete({ show: false, debtId: null, debtName: '' })
   }
 
+  const completeOnboarding = () => {
+    localStorage.setItem('dera-onboarded', 'true')
+    setShowOnboarding(false)
+  }
+
   const handleParsedDebt = async (parsedDebt) => {
     const { error } = await supabase.from('debts').insert([{
       provider: parsedDebt.provider,
@@ -174,6 +182,131 @@ function App() {
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'A'
 
   if (!session) return <Auth />
+
+  if (showOnboarding) {
+    const obSlides = [
+      {
+        graphic: (
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full bg-indigo-600" />
+              <span className="text-5xl font-bold text-indigo-600 tracking-tight">DERA</span>
+            </div>
+            <div className="flex gap-2 mt-2">
+              {['Klarna', 'Clearpay', 'Zilch'].map(p => (
+                <span key={p} className="text-xs px-3 py-1 bg-white dark:bg-slate-800 rounded-full text-gray-500 dark:text-slate-400 shadow-sm border border-gray-100 dark:border-slate-700">{p}</span>
+              ))}
+            </div>
+          </div>
+        ),
+        headline: 'Your BNPL debt,\nall in one place',
+        sub: 'Track Klarna, Clearpay, PayPal and more — without the stress.',
+      },
+      {
+        graphic: (
+          <div className="w-24 h-24 rounded-3xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+            <svg width="44" height="44" fill="none" viewBox="0 0 24 24" className="text-indigo-600">
+              <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          </div>
+        ),
+        headline: "Know what's\ncoming",
+        sub: 'See every payment due date in one calendar and get ahead of missed payments.',
+      },
+      {
+        graphic: (
+          <div className="w-24 h-24 rounded-3xl bg-indigo-100 dark:bg-indigo-900/40 flex items-center justify-center">
+            <svg width="44" height="44" fill="none" viewBox="0 0 24 24" className="text-indigo-600">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M8 12l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+        ),
+        headline: 'Ready to take\ncontrol?',
+        sub: 'Add your first debt in seconds and see your full picture instantly.',
+      },
+    ]
+
+    return (
+      <div className="min-h-screen app-bg flex flex-col">
+        {/* Skip */}
+        <div className="flex justify-end items-center px-6 pt-12 h-16 flex-shrink-0">
+          {onboardingSlide < 2 && (
+            <button
+              onClick={completeOnboarding}
+              className="text-sm text-gray-400 dark:text-slate-500 font-medium hover:text-gray-600 dark:hover:text-slate-300 transition-colors"
+            >
+              Skip
+            </button>
+          )}
+        </div>
+
+        {/* Slides */}
+        <div className="flex-1 overflow-hidden min-h-0">
+          <div
+            className="flex h-full transition-transform duration-500 ease-in-out"
+            style={{ transform: `translateX(-${onboardingSlide * 100}%)` }}
+            onTouchStart={e => { onboardingTouchStart.current = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              if (onboardingTouchStart.current === null) return
+              const delta = onboardingTouchStart.current - e.changedTouches[0].clientX
+              if (delta > 50 && onboardingSlide < 2) setOnboardingSlide(s => s + 1)
+              if (delta < -50 && onboardingSlide > 0) setOnboardingSlide(s => s - 1)
+              onboardingTouchStart.current = null
+            }}
+          >
+            {obSlides.map((slide, i) => (
+              <div key={i} className="min-w-full h-full flex flex-col items-center justify-center px-10 text-center">
+                <div className="mb-10">{slide.graphic}</div>
+                <h1 className="text-3xl font-bold text-gray-900 dark:text-white leading-tight whitespace-pre-line mb-4">
+                  {slide.headline}
+                </h1>
+                <p className="text-base text-gray-500 dark:text-slate-400 leading-relaxed max-w-xs">
+                  {slide.sub}
+                </p>
+                {i === 2 && (
+                  <button
+                    onClick={completeOnboarding}
+                    className="mt-12 w-full max-w-xs py-4 bg-indigo-600 text-white rounded-2xl text-base font-semibold hover:bg-indigo-700 transition-colors"
+                    style={{ boxShadow: '0 4px 24px rgba(99,102,241,0.4)' }}
+                  >
+                    Get started
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Dots + Next */}
+        <div className="flex-shrink-0 flex flex-col items-center gap-5 py-10">
+          <div className="flex items-center gap-2">
+            {obSlides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setOnboardingSlide(i)}
+                className={`rounded-full transition-all duration-300 ${
+                  i === onboardingSlide
+                    ? 'w-6 h-2 bg-indigo-600'
+                    : 'w-2 h-2 bg-gray-300 dark:bg-slate-600'
+                }`}
+              />
+            ))}
+          </div>
+          {onboardingSlide < 2 && (
+            <button
+              onClick={() => setOnboardingSlide(s => s + 1)}
+              className="px-10 py-3 bg-indigo-600 text-white rounded-2xl text-sm font-semibold hover:bg-indigo-700 transition-colors shadow-md"
+            >
+              Next
+            </button>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   const navTabs = [
     { id: 'home', label: 'Home' },
