@@ -22,3 +22,17 @@
   box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 8px 32px rgba(0, 0, 0, 0.5);
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
+
+/* Wellbeing ring */
+.score-track { stroke: #F3F4F6; }
+.dark .score-track { stroke: #334155; }
+
+@keyframes score-ring-draw {
+  from { stroke-dashoffset: 440; }
+  to   { stroke-dashoffset: var(--score-dashoffset, 0); }
+}
+
+.score-ring-animate {
+  stroke-dashoffset: 440;
+  animation: score-ring-draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

@@ -8,6 +8,14 @@ const PROVIDERS = {
   'Other': 'the creditor',
 }
 
+const providerColors = {
+  'Klarna': '#FF7DA8',
+  'Clearpay': '#1EC9A0',
+  'PayPal Pay in 3': '#1E73E8',
+  'Zilch': '#7C5CFC',
+  'Other': '#9AA0B5',
+}
+
 function LetterWriter({ debts }) {
   const [selectedDebt, setSelectedDebt] = useState('')
   const [reason, setReason] = useState('')
@@ -65,46 +73,57 @@ Write a short, professional letter requesting a payment extension of 14 days. Th
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-xl font-medium text-gray-900">AI Letter Writer</h2>
-        <p className="text-gray-500 text-sm mt-1">Generate a professional hardship letter to send to your creditor.</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <p className="text-sm text-gray-400 dark:text-slate-500 leading-relaxed">
+        Generate a professional hardship letter to send to your BNPL provider requesting a payment extension.
+      </p>
 
-      {/* Step 1 — pick debt */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
-        <p className="text-sm font-medium text-gray-900">1. Which debt do you need help with?</p>
+      {/* Which debt? */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">Which debt?</p>
         {debts.length === 0 ? (
-          <p className="text-sm text-gray-400">No debts added yet. Add a debt from the dashboard first.</p>
+          <p className="text-sm text-gray-400 dark:text-slate-500">No debts added yet. Add one from the home screen.</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {debts.map(debt => (
-              <button
-                key={debt.id}
-                onClick={() => setSelectedDebt(debt.id)}
-                className={`text-left p-3 rounded-xl border text-sm transition-colors ${
-                  selectedDebt === debt.id
-                    ? 'border-purple-600 bg-purple-50 text-purple-900'
-                    : 'border-gray-100 text-gray-700 hover:border-gray-200'
-                }`}
-              >
-                <span className="font-medium">{debt.provider}</span> — {debt.item}
-                <span className="text-gray-400 ml-2">£{Number(debt.total).toFixed(2)}</span>
-              </button>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {debts.map(debt => {
+              const color = providerColors[debt.provider] || '#9AA0B5'
+              const isSelected = selectedDebt === debt.id
+              return (
+                <button
+                  key={debt.id}
+                  onClick={() => setSelectedDebt(debt.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+                    isSelected
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-indigo-300'
+                  }`}
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: isSelected ? 'rgba(255,255,255,0.7)' : color }}
+                  />
+                  {debt.provider}
+                </button>
+              )
+            })}
           </div>
+        )}
+        {selectedDebt && (
+          <p className="text-xs text-gray-400 dark:text-slate-500 mt-2">
+            {(() => { const d = debts.find(x => x.id === selectedDebt); return d ? `${d.item} · £${Number(d.total).toFixed(2)}` : '' })()}
+          </p>
         )}
       </div>
 
-      {/* Step 2 — reason */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
-        <p className="text-sm font-medium text-gray-900">2. Briefly explain why you need more time</p>
+      {/* Reason */}
+      <div>
+        <p className="text-xs font-semibold text-gray-500 dark:text-slate-400 uppercase tracking-wide mb-2">Reason</p>
         <textarea
           value={reason}
           onChange={e => setReason(e.target.value)}
           placeholder="e.g. unexpected car repair bill this month"
           rows={3}
-          className="w-full text-sm text-gray-700 border border-gray-100 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-purple-100"
+          className="w-full text-sm text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-xl p-3 resize-none focus:outline-none focus:border-indigo-400 dark:placeholder-slate-500"
         />
       </div>
 
@@ -112,29 +131,29 @@ Write a short, professional letter requesting a payment extension of 14 days. Th
       <button
         onClick={generateLetter}
         disabled={!selectedDebt || !reason || loading}
-        className={`w-full py-3 rounded-2xl text-sm font-medium transition-colors ${
-          !selectedDebt || !reason || loading
-            ? 'bg-gray-100 text-gray-400'
-            : 'bg-purple-600 text-white hover:bg-purple-700'
-        }`}
+        className="w-full py-3 rounded-2xl text-sm font-semibold transition-colors bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed"
       >
         {loading ? 'Writing your letter...' : 'Generate letter'}
       </button>
 
       {/* Generated letter */}
       {letter && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-4 flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-gray-900">Your letter</p>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">Your letter</p>
             <button
               onClick={copyLetter}
-              className="text-xs text-purple-600 font-medium"
+              className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
+                copied
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                  : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100'
+              }`}
             >
-              {copied ? 'Copied!' : 'Copy letter'}
+              {copied ? 'Copied ✓' : 'Copy to clipboard'}
             </button>
           </div>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{letter}</p>
-          <p className="text-xs text-gray-400">Review the letter before sending. You can edit it to add your name and any personal details.</p>
+          <p className="text-sm text-gray-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{letter}</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">Review before sending — add your name and any personal details.</p>
         </div>
       )}
     </div>

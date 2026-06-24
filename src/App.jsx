@@ -2,19 +2,15 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import Auth from './Auth'
 import AddDebt from './AddDebt'
-import PaymentCalendar from './PaymentCalendar'
-import RepaymentPlanner from './RepaymentPlanner'
-import RiskPredictor from './RiskPredictor'
-import WellbeingScore from './WellbeingScore'
 import LetterWriter from './LetterWriter'
 import EmailParser from './EmailParser'
 
 const providerColors = {
-  'Klarna': '#FF6B8A',
-  'Clearpay': '#00D4AA',
-  'PayPal Pay in 3': '#0070E0',
-  'Zilch': '#F59E0B',
-  'Other': '#8B5CF6',
+  'Klarna': '#FF7DA8',
+  'Clearpay': '#1EC9A0',
+  'PayPal Pay in 3': '#1E73E8',
+  'Zilch': '#7C5CFC',
+  'Other': '#9AA0B5',
 }
 
 const providerInitial = {
@@ -92,7 +88,8 @@ function App() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [toolsTab, setToolsTab] = useState('letter')
-  const [insightsTab, setInsightsTab] = useState('wellbeing')
+  const [planBudget, setPlanBudget] = useState(120)
+  const [planStrategy, setPlanStrategy] = useState('avalanche')
   const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
@@ -178,6 +175,33 @@ function App() {
   })
 
   const dueThisWeekTotal = dueThisWeek.reduce((sum, d) => sum + Number(d.total), 0)
+
+  // Wellbeing score (shared between home mini card and insights tab)
+  const overdueCount = debts.filter(d => Math.ceil((new Date(d.due_date) - new Date()) / 86400000) < 0).length
+  const dueSoon3Count = debts.filter(d => { const days = Math.ceil((new Date(d.due_date) - new Date()) / 86400000); return days >= 0 && days <= 3 }).length
+  const timelinessScore = Math.max(0, 100 - overdueCount * 40 - dueSoon3Count * 10)
+  const debtLoadScore = Math.max(0, 100 - debts.length * 10)
+  const repaymentScore = debts.length > 0
+    ? Math.round(debts.reduce((s, d) => s + (d.paid / d.instalments), 0) / debts.length * 100)
+    : 100
+  const wellbeingScore = Math.round((timelinessScore + debtLoadScore + repaymentScore) / 3)
+  const wellbeingColor = wellbeingScore >= 70 ? '#16A34A' : wellbeingScore >= 40 ? '#D97706' : '#DC2626'
+  const wellbeingLabel = wellbeingScore >= 70 ? 'Looking good' : wellbeingScore >= 40 ? 'Doing okay' : 'Needs attention'
+
+  // Risk banner
+  const atRiskDebts = [...debts]
+    .map(d => ({ ...d, days: Math.ceil((new Date(d.due_date) - new Date()) / 86400000) }))
+    .filter(d => d.days <= 3)
+    .sort((a, b) => a.days - b.days)
+
+  // Repayment planner
+  const totalRemaining = debts.reduce((sum, d) => sum + Number(d.total) * (1 - d.paid / d.instalments), 0)
+  const planMonths = totalRemaining > 0 ? Math.ceil(totalRemaining / planBudget) : 0
+  const planSortedDebts = [...debts].sort((a, b) =>
+    planStrategy === 'avalanche'
+      ? Number(b.total) - Number(a.total)
+      : Number(a.total) - Number(b.total)
+  )
 
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'A'
 
@@ -361,36 +385,29 @@ function App() {
             </div>
 
             {/* Wellbeing score mini card */}
-            {debts.length > 0 && (() => {
-              const overdue = debts.filter(d => Math.ceil((new Date(d.due_date) - new Date()) / 86400000) < 0).length
-              const dueSoon = debts.filter(d => { const days = Math.ceil((new Date(d.due_date) - new Date()) / 86400000); return days >= 0 && days <= 7 }).length
-              const score = Math.max(0, Math.min(100, 100 - (overdue * 30) - (dueSoon * 10) - (debts.length * 2)))
-              const label = score >= 70 ? 'Looking good' : score >= 40 ? 'Doing okay' : 'Needs attention'
-              const color = score >= 70 ? '#16A34A' : score >= 40 ? '#D97706' : '#DC2626'
-              return (
-                <button
-                  onClick={() => { setActiveTab('insights'); setInsightsTab('wellbeing') }}
-                  className="w-full mt-3 bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-slate-700"
-                >
-                  <div className="relative w-12 h-12 flex-shrink-0">
-                    <svg width="48" height="48" viewBox="0 0 48 48">
-                      <circle cx="24" cy="24" r="18" fill="none" stroke="#F3F4F6" strokeWidth="6"/>
-                      <circle cx="24" cy="24" r="18" fill="none" stroke={color} strokeWidth="6"
-                        strokeDasharray={`${(score / 100) * 113} 113`}
-                        strokeLinecap="round" transform="rotate(-90 24 24)"/>
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{score}</span>
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Wellbeing score</p>
-                    <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{label} · tap for breakdown</p>
-                  </div>
-                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" className="text-gray-300 dark:text-slate-600">
-                    <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            {debts.length > 0 && (
+              <button
+                onClick={() => setActiveTab('insights')}
+                className="w-full mt-3 bg-white dark:bg-slate-800 rounded-2xl p-4 flex items-center gap-4 shadow-sm border border-gray-100 dark:border-slate-700"
+              >
+                <div className="relative w-12 h-12 flex-shrink-0">
+                  <svg width="48" height="48" viewBox="0 0 48 48">
+                    <circle cx="24" cy="24" r="18" fill="none" stroke="#F3F4F6" strokeWidth="6"/>
+                    <circle cx="24" cy="24" r="18" fill="none" stroke={wellbeingColor} strokeWidth="6"
+                      strokeDasharray={`${(wellbeingScore / 100) * 113} 113`}
+                      strokeLinecap="round" transform="rotate(-90 24 24)"/>
                   </svg>
-                </button>
-              )
-            })()}
+                  <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: wellbeingColor }}>{wellbeingScore}</span>
+                </div>
+                <div className="flex-1 text-left">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Wellbeing score</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{wellbeingLabel} · tap for breakdown</p>
+                </div>
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" className="text-gray-300 dark:text-slate-600">
+                  <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
 
             {/* This week */}
             {dueThisWeek.length > 0 && (
@@ -496,41 +513,307 @@ function App() {
                 </div>
               )}
             </div>
+
+            {/* Your debts */}
+            {!loading && !fetchError && debts.length > 0 && (
+              <div className="mt-6 mb-2">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Your debts</p>
+                <div className="flex flex-col gap-3">
+                  {debts.map(debt => {
+                    const color = providerColors[debt.provider] || '#9AA0B5'
+                    const progress = Math.min(100, (debt.paid / debt.instalments) * 100)
+                    const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
+                    const computedStatus = days < 0 ? 'due-soon' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
+                    const statusConfig = {
+                      'due-soon': { label: 'Due soon', cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' },
+                      'upcoming': { label: 'Upcoming', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' },
+                      'on-track': { label: 'On track', cls: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' },
+                    }[computedStatus]
+                    const dueLabel = days < 0
+                      ? `${Math.abs(days)}d overdue`
+                      : days === 0 ? 'Due today'
+                      : `${days} day${days === 1 ? '' : 's'} left`
+                    const dueLabelColor = days <= 0 ? '#EF4444' : days <= 3 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#9AA0B5'
+
+                    return (
+                      <div key={debt.id} className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-4">
+                        {/* Top row */}
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: color }} />
+                            <p className="text-sm font-bold text-gray-900 dark:text-white leading-snug truncate">{debt.item}</p>
+                          </div>
+                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full flex-shrink-0 ${statusConfig.cls}`}>
+                            {statusConfig.label}
+                          </span>
+                        </div>
+
+                        {/* Subtitle */}
+                        <p className="text-xs text-gray-400 dark:text-slate-500 mb-4 pl-[18px]">
+                          {debt.provider} · {debt.paid}/{debt.instalments} paid
+                        </p>
+
+                        {/* Amount + due date */}
+                        <div className="flex items-end justify-between mb-2.5">
+                          <p className="text-xl font-bold text-gray-900 dark:text-white">
+                            £{Number(debt.total).toFixed(2)}
+                          </p>
+                          <p className="text-xs font-semibold" style={{ color: dueLabelColor }}>
+                            {dueLabel}
+                          </p>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${progress}%`, backgroundColor: color }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* ── CALENDAR ─────────────────────────────────────────── */}
         {activeTab === 'calendar' && (
           <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Payment Calendar</h2>
-            <PaymentCalendar />
+            <div className="mb-5">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Payments</h2>
+              <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
+                £{totalDebt.toFixed(2)} across {debts.length} upcoming date{debts.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <div className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-slate-600 border-t-indigo-600 animate-spin" />
+              </div>
+            ) : debts.length === 0 ? (
+              <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-slate-700">
+                <p className="text-gray-400 dark:text-slate-500 text-sm">No upcoming payments</p>
+                <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Add a debt to see your schedule</p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {[...debts].sort((a, b) => new Date(a.due_date) - new Date(b.due_date)).map(debt => {
+                  const color = providerColors[debt.provider] || '#9AA0B5'
+                  const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
+                  const urgency = days < 0 ? 'overdue' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
+
+                  const dateBlockColors = {
+                    'overdue':  { bg: '#FEE2E2', text: '#DC2626' },
+                    'due-soon': { bg: '#FEE2E2', text: '#DC2626' },
+                    'upcoming': { bg: '#FEF3C7', text: '#D97706' },
+                    'on-track': { bg: '#DCFCE7', text: '#16A34A' },
+                  }[urgency]
+
+                  const darkDateBlockColors = {
+                    'overdue':  'bg-red-900/30 text-red-400',
+                    'due-soon': 'bg-red-900/30 text-red-400',
+                    'upcoming': 'bg-amber-900/30 text-amber-400',
+                    'on-track': 'bg-green-900/30 text-green-400',
+                  }[urgency]
+
+                  const dueLabel = days < 0
+                    ? `${Math.abs(days)}d overdue`
+                    : days === 0 ? 'Due today'
+                    : `${days} day${days === 1 ? '' : 's'} left`
+
+                  const dueLabelColor = days <= 0 ? '#EF4444' : days <= 3 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#9AA0B5'
+
+                  const due = new Date(debt.due_date)
+                  const month = due.toLocaleString('en-GB', { month: 'short' }).toUpperCase()
+                  const day = due.getDate()
+
+                  return (
+                    <div key={debt.id} className="flex gap-3 items-stretch">
+                      {/* Date block */}
+                      <div
+                        className={`w-[54px] flex-shrink-0 rounded-2xl flex flex-col items-center justify-center dark:hidden`}
+                        style={{ backgroundColor: dateBlockColors.bg }}
+                      >
+                        <span className="text-[10px] font-bold tracking-widest" style={{ color: dateBlockColors.text }}>{month}</span>
+                        <span className="text-2xl font-bold leading-tight" style={{ color: dateBlockColors.text }}>{day}</span>
+                      </div>
+                      <div className={`w-[54px] flex-shrink-0 rounded-2xl flex-col items-center justify-center hidden dark:flex ${darkDateBlockColors}`}>
+                        <span className="text-[10px] font-bold tracking-widest">{month}</span>
+                        <span className="text-2xl font-bold leading-tight">{day}</span>
+                      </div>
+
+                      {/* Payment card */}
+                      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm px-4 py-3 flex flex-col justify-between">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{debt.provider}</p>
+                          </div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
+                        </div>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 pl-4 mb-2 truncate">{debt.item}</p>
+                        <p className="text-xs font-semibold pl-4" style={{ color: dueLabelColor }}>{dueLabel}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )}
 
         {/* ── INSIGHTS ─────────────────────────────────────────── */}
         {activeTab === 'insights' && (
-          <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Insights</h2>
+          <div className="mt-2 flex flex-col gap-4 pb-2">
 
-            <div className="flex gap-2 mb-5">
-              {[{ id: 'wellbeing', label: 'Wellbeing' }, { id: 'risk', label: 'Risk' }, { id: 'planner', label: 'Repayment' }].map(t => (
-                <button
-                  key={t.id}
-                  onClick={() => setInsightsTab(t.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                    insightsTab === t.id
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-600'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
+            {/* Risk alert banner */}
+            <div className={`rounded-2xl p-4 flex items-center gap-4 ${atRiskDebts.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-base font-bold ${atRiskDebts.length > 0 ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' : 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400'}`}>
+                {atRiskDebts.length > 0 ? '!' : '✓'}
+              </div>
+              <div>
+                <p className={`text-sm font-bold ${atRiskDebts.length > 0 ? 'text-red-800 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>
+                  {atRiskDebts.length > 0
+                    ? `${atRiskDebts.length} payment${atRiskDebts.length > 1 ? 's' : ''} need${atRiskDebts.length === 1 ? 's' : ''} attention`
+                    : "You're on track"}
+                </p>
+                <p className={`text-xs mt-0.5 ${atRiskDebts.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                  {atRiskDebts.length > 0
+                    ? (() => { const d = atRiskDebts[0]; const dl = d.days < 0 ? `${Math.abs(d.days)}d overdue` : d.days === 0 ? 'due today' : `${d.days} day${d.days === 1 ? '' : 's'} left`; return `${d.provider} — ${d.item}: ${dl}` })()
+                    : 'No payments due in the next 3 days.'}
+                </p>
+              </div>
             </div>
 
-            {insightsTab === 'wellbeing' && <WellbeingScore debts={debts} />}
-            {insightsTab === 'risk' && <RiskPredictor />}
-            {insightsTab === 'planner' && <RepaymentPlanner />}
+            {/* Wellbeing score ring */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 flex flex-col items-center">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-5">Wellbeing score</p>
+              <div className="relative" style={{ width: 160, height: 160 }}>
+                <svg width="160" height="160" viewBox="0 0 160 160">
+                  <circle cx="80" cy="80" r="70" fill="none" className="score-track" strokeWidth="10" />
+                  <circle
+                    cx="80" cy="80" r="70"
+                    fill="none"
+                    stroke={wellbeingColor}
+                    strokeWidth="10"
+                    strokeLinecap="round"
+                    strokeDasharray="440"
+                    className="score-ring-animate"
+                    style={{ '--score-dashoffset': 440 * (1 - wellbeingScore / 100) }}
+                    transform="rotate(-90 80 80)"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-3xl font-bold text-gray-900 dark:text-white">{wellbeingScore}</span>
+                  <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">out of 100</span>
+                </div>
+              </div>
+              <p className="text-sm font-semibold mt-4" style={{ color: wellbeingColor }}>{wellbeingLabel}</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500 text-center mt-1.5 max-w-[260px] leading-relaxed">
+                Based on payment timing, debt load and repayment progress.
+              </p>
+            </div>
+
+            {/* Factor breakdown */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Score breakdown</p>
+              {[
+                { label: 'Payment timeliness', score: timelinessScore },
+                { label: 'Debt load', score: debtLoadScore },
+                { label: 'Repayment progress', score: repaymentScore },
+              ].map(({ label, score }) => {
+                const fc = score >= 70 ? '#16A34A' : score >= 40 ? '#D97706' : '#DC2626'
+                return (
+                  <div key={label} className="mb-4 last:mb-0">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <p className="text-xs text-gray-600 dark:text-slate-400">{label}</p>
+                      <p className="text-xs font-bold" style={{ color: fc }}>{score}</p>
+                    </div>
+                    <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: fc }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Repayment planner */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Repayment planner</p>
+
+              {/* Budget slider */}
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">Monthly budget</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">£{planBudget}/mo</p>
+                </div>
+                <input
+                  type="range" min="40" max="240" step="10"
+                  value={planBudget}
+                  onChange={e => setPlanBudget(Number(e.target.value))}
+                  className="w-full accent-indigo-600"
+                />
+                <div className="flex justify-between mt-1">
+                  <span className="text-xs text-gray-300 dark:text-slate-600">£40</span>
+                  <span className="text-xs text-gray-300 dark:text-slate-600">£240</span>
+                </div>
+              </div>
+
+              {/* Strategy toggle */}
+              <div className="flex gap-2 mb-4">
+                {[{ id: 'avalanche', label: 'Avalanche' }, { id: 'snowball', label: 'Snowball' }].map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => setPlanStrategy(s.id)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                      planStrategy === s.id
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Ranked debt list */}
+              {planSortedDebts.length === 0 ? (
+                <p className="text-xs text-gray-400 dark:text-slate-500 text-center py-4">Add debts to build a plan</p>
+              ) : (
+                <div className="flex flex-col gap-2 mb-4">
+                  {planSortedDebts.map((debt, i) => {
+                    const color = providerColors[debt.provider] || '#9AA0B5'
+                    const remaining = Number(debt.total) * (1 - debt.paid / debt.instalments)
+                    return (
+                      <div key={debt.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-700/50">
+                        <span className="text-xs font-bold text-gray-300 dark:text-slate-500 w-4 text-center flex-shrink-0">{i + 1}</span>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">{debt.item}</p>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">{debt.provider}</p>
+                        </div>
+                        <p className="text-xs font-bold text-gray-600 dark:text-slate-300 flex-shrink-0">£{remaining.toFixed(0)} left</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Result card */}
+              {debts.length > 0 && (
+                <div className={`rounded-xl p-4 text-center ${planMonths === 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+                  <p className="text-sm font-bold text-green-800 dark:text-green-300">
+                    {planMonths === 0
+                      ? "You're already debt-free!"
+                      : `At £${planBudget}/mo you'll be debt-free in ~${planMonths} month${planMonths !== 1 ? 's' : ''}`}
+                  </p>
+                </div>
+              )}
+            </div>
+
           </div>
         )}
 
@@ -539,15 +822,16 @@ function App() {
           <div className="mt-2">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Tools</h2>
 
-            <div className="flex gap-2 mb-5">
-              {[{ id: 'letter', label: 'Letter Writer' }, { id: 'email', label: 'Email Parser' }].map(t => (
+            {/* Segmented pill switcher */}
+            <div className="p-1 bg-gray-100 dark:bg-slate-700 rounded-[14px] flex mb-5">
+              {[{ id: 'letter', label: 'Letter writer' }, { id: 'email', label: 'Email parser' }].map(t => (
                 <button
                   key={t.id}
                   onClick={() => setToolsTab(t.id)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+                  className={`flex-1 py-2 text-sm font-medium rounded-[10px] transition-all duration-200 ${
                     toolsTab === t.id
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-white dark:bg-slate-800 text-gray-500 dark:text-slate-400 border border-gray-200 dark:border-slate-600'
+                      ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
+                      : 'text-gray-500 dark:text-slate-400'
                   }`}
                 >
                   {t.label}
@@ -562,98 +846,94 @@ function App() {
 
         {/* ── SETTINGS ─────────────────────────────────────────── */}
         {activeTab === 'settings' && (
-          <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Settings</h2>
+          <div className="mt-2 flex flex-col gap-5 pb-2">
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Account</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">{session?.user?.email}</p>
-                </div>
-                <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold">
-                  {userInitial}
-                </div>
+            {/* Profile card */}
+            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-4 flex items-center gap-4">
+              <div className="w-[54px] h-[54px] rounded-full bg-indigo-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
+                {userInitial}
               </div>
+              <div className="min-w-0">
+                <p className="font-bold text-gray-900 dark:text-white truncate" style={{ fontSize: 17 }}>
+                  {session?.user?.user_metadata?.full_name || 'Your account'}
+                </p>
+                <p className="text-sm text-gray-400 dark:text-slate-400 mt-0.5 truncate">{session?.user?.email}</p>
+              </div>
+            </div>
 
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Appearance</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">
-                    {theme === 'light' ? 'Light mode' : theme === 'dark' ? 'Dark mode' : 'System default'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light')}
-                  className="relative w-24 h-8 rounded-full transition-colors duration-300 flex items-center px-1"
-                  style={{
-                    background: theme === 'light' ? '#f3f4f6' : theme === 'dark' ? '#312e81' : '#1e293b',
-                  }}
-                  aria-label="Toggle theme"
-                >
-                  {/* Three stop markers */}
-                  {[
-                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-amber-400"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: '16px' },
-                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-indigo-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>, pos: '50%' },
-                    { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-slate-400"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: 'calc(100% - 16px)' },
-                  ].map(({ icon, pos }, i) => (
-                    <span
-                      key={i}
-                      className="absolute pointer-events-none select-none flex items-center justify-center opacity-50"
-                      style={{ left: pos, transform: 'translateX(-50%)' }}
-                    >
-                      {icon}
-                    </span>
-                  ))}
-                  {/* Sliding thumb */}
-                  <span
-                    className="relative z-10 w-6 h-6 rounded-full shadow-md flex items-center justify-center transition-transform duration-300 bg-white"
-                    style={{
-                      transform: theme === 'light'
-                        ? 'translateX(0px)'
-                        : theme === 'dark'
-                        ? 'translateX(32px)'
-                        : 'translateX(64px)',
-                    }}
+            {/* Appearance */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-2 px-1">Appearance</p>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm">
+                <div className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">Appearance</p>
+                    <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">
+                      {theme === 'light' ? 'Light mode' : theme === 'dark' ? 'Dark mode' : 'System default'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setTheme(t => t === 'light' ? 'dark' : t === 'dark' ? 'system' : 'light')}
+                    className="relative w-24 h-8 rounded-full transition-colors duration-300 flex items-center px-1"
+                    style={{ background: theme === 'light' ? '#f3f4f6' : theme === 'dark' ? '#312e81' : '#1e293b' }}
+                    aria-label="Toggle theme"
                   >
-                    {theme === 'light' && (
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-amber-500">
-                        <circle cx="12" cy="12" r="4" fill="currentColor"/>
-                        <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                    {theme === 'dark' && (
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-indigo-500">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/>
-                      </svg>
-                    )}
-                    {theme === 'system' && (
-                      <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-slate-500">
-                        <rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/>
-                        <path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      </svg>
-                    )}
-                  </span>
-                </button>
-              </div>
-
-              <div className="p-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">Notifications</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-0.5">Payment reminders</p>
+                    {[
+                      { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-amber-400"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: '16px' },
+                      { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-indigo-400"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>, pos: '50%' },
+                      { icon: <svg width="11" height="11" fill="none" viewBox="0 0 24 24" className="text-slate-400"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>, pos: 'calc(100% - 16px)' },
+                    ].map(({ icon, pos }, i) => (
+                      <span key={i} className="absolute pointer-events-none select-none flex items-center justify-center opacity-50" style={{ left: pos, transform: 'translateX(-50%)' }}>
+                        {icon}
+                      </span>
+                    ))}
+                    <span
+                      className="relative z-10 w-6 h-6 rounded-full shadow-md flex items-center justify-center transition-transform duration-300 bg-white"
+                      style={{ transform: theme === 'light' ? 'translateX(0px)' : theme === 'dark' ? 'translateX(32px)' : 'translateX(64px)' }}
+                    >
+                      {theme === 'light' && <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-amber-500"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}
+                      {theme === 'dark' && <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-indigo-500"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="currentColor"/></svg>}
+                      {theme === 'system' && <svg width="12" height="12" fill="none" viewBox="0 0 24 24" className="text-slate-500"><rect x="2" y="3" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2"/><path d="M8 21h8M12 17v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>}
+                    </span>
+                  </button>
                 </div>
-                <span className="text-xs bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-3 py-1 rounded-full font-medium">Coming soon</span>
               </div>
+            </div>
 
+            {/* Preferences */}
+            <div>
+              <p className="text-xs font-semibold text-gray-400 dark:text-slate-500 uppercase tracking-wide mb-2 px-1">Preferences</p>
+              <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
+                {[
+                  { label: 'Notifications', value: 'On' },
+                  { label: 'Currency', value: 'GBP £' },
+                  { label: 'Linked providers', value: '4' },
+                  { label: 'Privacy and data', value: null },
+                ].map(({ label, value }) => (
+                  <div key={label} className="px-4 py-3.5 flex items-center justify-between">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">{label}</p>
+                    <div className="flex items-center gap-1.5">
+                      {value && <span className="text-sm text-gray-400 dark:text-slate-500">{value}</span>}
+                      <svg width="14" height="14" fill="none" viewBox="0 0 24 24" className="text-gray-300 dark:text-slate-600">
+                        <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Sign out + caption */}
+            <div className="flex flex-col items-center gap-3 pt-2 pb-4">
               <button
                 onClick={() => supabase.auth.signOut()}
-                className="w-full p-4 text-left text-sm font-medium text-red-500"
+                className="text-sm font-semibold text-red-500 hover:text-red-600 transition-colors"
               >
                 Sign out
               </button>
+              <p className="text-xs text-gray-300 dark:text-slate-600">DERA v1.0 · Built with care for students</p>
             </div>
 
-            <p className="text-center text-xs text-gray-300 dark:text-slate-600 mt-6">DERA · Version 1.0</p>
           </div>
         )}
 

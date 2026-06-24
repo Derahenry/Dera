@@ -1,5 +1,26 @@
 import { useState } from 'react'
 
+const SAMPLE_EMAIL = `From: noreply@klarna.com
+Subject: Your next payment is due soon
+
+Hi there,
+
+Just a heads up — your next Klarna payment is coming up.
+
+Order details:
+Item: Nike Air Force 1 '07
+Total order value: £89.97
+Next payment: £29.99
+Payment date: 2026-07-18
+Instalment: 1 of 3
+
+You don't need to do anything — we'll collect the payment automatically from your registered card.
+
+Questions? Visit klarna.com/uk or reply to this email.
+
+Thanks,
+The Klarna team`
+
 function EmailParser({ onDebtParsed }) {
   const [emailText, setEmailText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -66,78 +87,72 @@ Return ONLY the JSON object, no explanation, no markdown, no code blocks.`
     }
   }
 
+  const fields = parsed ? [
+    { label: 'Provider', value: parsed.provider },
+    { label: 'Item', value: parsed.item },
+    { label: 'Total', value: `£${Number(parsed.total).toFixed(2)}` },
+    { label: 'Instalments', value: `${parsed.paid} of ${parsed.instalments} paid` },
+    { label: 'Due date', value: parsed.due_date },
+  ] : []
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-xl font-medium text-gray-900">Email Parser</h2>
-        <p className="text-gray-500 text-sm mt-1">Paste a BNPL email and DERA will extract the debt details automatically.</p>
-      </div>
+    <div className="flex flex-col gap-5">
+      <p className="text-sm text-gray-400 dark:text-slate-500 leading-relaxed">
+        Paste a BNPL confirmation email and DERA will extract the debt details automatically.
+      </p>
 
-      {/* Email input */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-3">
-        <p className="text-sm font-medium text-gray-900">Paste your BNPL email here</p>
-        <textarea
-          value={emailText}
-          onChange={e => setEmailText(e.target.value)}
-          placeholder="Copy and paste the full text of your Klarna, Clearpay or PayPal email here..."
-          rows={8}
-          className="w-full text-sm text-gray-700 border border-gray-100 rounded-xl p-3 resize-none focus:outline-none focus:ring-2 focus:ring-purple-100"
-        />
-      </div>
+      {/* Email textarea */}
+      <textarea
+        value={emailText}
+        onChange={e => setEmailText(e.target.value)}
+        placeholder="Paste your Klarna, Clearpay or PayPal email here..."
+        rows={8}
+        className="w-full text-sm text-gray-700 dark:text-slate-300 bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 rounded-2xl p-4 resize-none focus:outline-none focus:border-indigo-400 dark:placeholder-slate-500 leading-relaxed"
+      />
 
-      {/* Parse button */}
-      <button
-        onClick={parseEmail}
-        disabled={!emailText.trim() || loading}
-        className={`w-full py-3 rounded-2xl text-sm font-medium transition-colors ${
-          !emailText.trim() || loading
-            ? 'bg-gray-100 text-gray-400'
-            : 'bg-purple-600 text-white hover:bg-purple-700'
-        }`}
-      >
-        {loading ? 'Reading your email...' : 'Extract debt details'}
-      </button>
+      {/* Action buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setEmailText(SAMPLE_EMAIL)}
+          className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+        >
+          Use sample
+        </button>
+        <button
+          onClick={parseEmail}
+          disabled={!emailText.trim() || loading}
+          className="flex-1 py-2.5 rounded-2xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {loading ? 'Reading...' : 'Extract details'}
+        </button>
+      </div>
 
       {/* Error */}
       {error && (
-        <div className="bg-red-50 rounded-2xl p-4">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 rounded-2xl p-4">
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
 
       {/* Parsed result */}
       {parsed && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-col gap-4">
-          <p className="text-sm font-medium text-gray-900">Extracted details</p>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-4 flex flex-col gap-4">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">Extracted details</p>
 
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Provider</span>
-              <span className="text-gray-900 font-medium">{parsed.provider}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Item</span>
-              <span className="text-gray-900 font-medium">{parsed.item}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Total amount</span>
-              <span className="text-gray-900 font-medium">£{Number(parsed.total).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Due date</span>
-              <span className="text-gray-900 font-medium">{parsed.due_date}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Instalments</span>
-              <span className="text-gray-900 font-medium">{parsed.paid} of {parsed.instalments} paid</span>
-            </div>
+          <div className="flex flex-col divide-y divide-gray-50 dark:divide-slate-700">
+            {fields.map(({ label, value }) => (
+              <div key={label} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0">
+                <span className="text-xs text-gray-400 dark:text-slate-500">{label}</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{value}</span>
+              </div>
+            ))}
           </div>
 
           <button
             onClick={handleAddDebt}
-            className="w-full py-3 bg-purple-600 text-white rounded-2xl text-sm font-medium hover:bg-purple-700 transition-colors"
+            className="w-full py-3 bg-green-600 text-white rounded-2xl text-sm font-semibold hover:bg-green-700 transition-colors"
           >
-            Add this debt to DERA
+            Save to my debts
           </button>
         </div>
       )}
