@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 
 function Auth() {
   const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -16,7 +17,7 @@ function Auth() {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setMessage(error.message)
     } else {
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name } } })
       if (error) setMessage(error.message)
       else setMessage('Check your email to confirm your account!')
     }
@@ -54,6 +55,20 @@ function Auth() {
               className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
             />
           </div>
+
+          {/* Full Name */}
+          {!isLogin && (
+            <div className="mb-4">
+              <label className="text-xs text-gray-400 mb-1 block">Full name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Amara Johnson"
+                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
+              />
+            </div>
+          )}
 
           {/* Password */}
           <div className="mb-6">
