@@ -5,6 +5,7 @@ import AddDebt from './AddDebt'
 import LetterWriter from './LetterWriter'
 import EmailParser from './EmailParser'
 import Benchmarking from './Benchmarking'
+import OpenBanking from './OpenBanking'
 
 const providerColors = {
   'Klarna': '#FF7DA8',
@@ -920,7 +921,7 @@ function App() {
 
             {/* Segmented pill switcher */}
             <div className="p-1 bg-gray-100 dark:bg-slate-700 rounded-[14px] flex mb-5">
-              {[{ id: 'letter', label: 'Letter writer' }, { id: 'email', label: 'Email parser' }].map(t => (
+              {[{ id: 'letter', label: 'Letter writer' }, { id: 'email', label: 'Email parser' }, { id: 'banking', label: 'Open Banking' }].map(t => (
                 <button
                   key={t.id}
                   onClick={() => setToolsTab(t.id)}
@@ -937,6 +938,7 @@ function App() {
 
             {toolsTab === 'letter' && <LetterWriter debts={debts} />}
             {toolsTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} />}
+            {toolsTab === 'banking' && <OpenBanking />}
           </div>
         )}
 
