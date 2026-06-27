@@ -23,7 +23,7 @@ function OpenBanking() {
 
   const handleConnect = (bankName) => {
     setConnecting(bankName)
-    const authUrl = `https://auth.truelayer-sandbox.com/?response_type=code&client_id=${import.meta.env.VITE_TRUELAYER_CLIENT_ID}&scope=accounts%20transactions%20balance&redirect_uri=https://dera-alpha.vercel.app/callback&providers=uk-ob-all%20uk-oauth-all`
+    const authUrl = `https://auth.truelayer-sandbox.com/?response_type=code&client_id=${import.meta.env.VITE_TRUELAYER_CLIENT_ID}&scope=accounts%20transactions%20balance%20offline_access&redirect_uri=https://dera-alpha.vercel.app/callback&providers=uk-ob-all%20uk-oauth-all&disable_providers=oauth-providers`
     window.location.href = authUrl
   }
 
