@@ -4,6 +4,7 @@ import Auth from './Auth'
 import AddDebt from './AddDebt'
 import LetterWriter from './LetterWriter'
 import EmailParser from './EmailParser'
+import Benchmarking from './Benchmarking'
 
 const providerColors = {
   'Klarna': '#FF7DA8',
@@ -906,6 +907,8 @@ function App() {
                 </div>
               )}
             </div>
+
+            <Benchmarking debts={debts} />
 
           </div>
         )}
