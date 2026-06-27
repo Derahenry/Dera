@@ -99,6 +99,8 @@ function App() {
   const onboardingTouchStart = useRef(null)
   const [showSplash, setShowSplash] = useState(true)
   const [splashFading, setSplashFading] = useState(false)
+  const [navCompact, setNavCompact] = useState(false)
+  const lastScrollY = useRef(0)
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -117,6 +119,20 @@ function App() {
     const fadeTimer = setTimeout(() => setSplashFading(true), 2200)
     const hideTimer = setTimeout(() => setShowSplash(false), 2700)
     return () => { clearTimeout(fadeTimer); clearTimeout(hideTimer) }
+  }, [])
+
+  useEffect(() => {
+    const onScroll = () => {
+      const current = window.scrollY
+      if (current < lastScrollY.current && current > 50) {
+        setNavCompact(true)
+      } else {
+        setNavCompact(false)
+      }
+      lastScrollY.current = current
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   useEffect(() => {
@@ -982,7 +998,14 @@ function App() {
       {/* Bottom navigation */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="mx-auto max-w-lg px-4 pb-6 pt-2">
-          <div className="nav-bg rounded-2xl px-2 py-2 flex items-center justify-around">
+          <div
+            className="nav-bg rounded-2xl px-2 flex items-center justify-around"
+            style={{
+              paddingTop: navCompact ? 4 : 8,
+              paddingBottom: navCompact ? 4 : 8,
+              transition: 'padding 0.3s ease',
+            }}
+          >
             {navTabs.map(tab => {
               const active = activeTab === tab.id
               return (
@@ -991,7 +1014,9 @@ function App() {
                   onClick={() => setActiveTab(tab.id)}
                   className="flex flex-col items-center gap-1 px-2 py-1 transition-all"
                 >
+                  <div style={{ transform: navCompact ? 'scale(0.85)' : 'scale(1)', transition: 'transform 0.3s ease' }}>
                   <NavIcon tab={tab.id} active={active} />
+                  </div>
                   <div className={`transition-all duration-200 ${
                     active
                       ? 'px-3 py-0.5 rounded-full text-indigo-600 font-semibold'
