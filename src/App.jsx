@@ -148,6 +148,52 @@ function App() {
     if (session) fetchDebts()
   }, [session])
 
+  useEffect(() => {
+    if (!session) return
+    if (!('serviceWorker' in navigator) || !('Notification' in window)) return
+
+    const today = new Date().toISOString().slice(0, 10)
+    if (localStorage.getItem('dera-last-notif-check') === today) return
+
+    navigator.serviceWorker.register('/sw.js').catch(() => {})
+
+    Notification.requestPermission().then(permission => {
+      if (permission !== 'granted') return
+
+      localStorage.setItem('dera-last-notif-check', today)
+
+      supabase
+        .from('debts')
+        .select('*')
+        .then(({ data }) => {
+          if (!data) return
+          const now = new Date()
+          now.setHours(0, 0, 0, 0)
+
+          data.forEach(debt => {
+            const due = new Date(debt.due_date)
+            due.setHours(0, 0, 0, 0)
+            const days = Math.round((due - now) / 86400000)
+            const amount = `£${Number(debt.total).toFixed(2)}`
+
+            if (days === 0) {
+              new Notification('Payment due today', {
+                body: `Your ${debt.provider} payment of ${amount} is due today — don't miss it`,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+              })
+            } else if (days > 0 && days <= 3) {
+              new Notification('Payment due soon', {
+                body: `Your ${debt.provider} payment of ${amount} is due in ${days} day${days === 1 ? '' : 's'}`,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+              })
+            }
+          })
+        })
+    })
+  }, [session])
+
   const fetchDebts = async () => {
     setLoading(true)
     setFetchError(null)
