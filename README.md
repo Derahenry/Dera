@@ -4,7 +4,7 @@
 
 Klarna, Clearpay, PayPal Pay in 3 and Zilch each show you only your own plans. DERA puts every BNPL debt in one dashboard, shows what's due and when, and helps you plan repayments before a missed payment turns into a fee or a credit file mark.
 
-**Live app:** [dera-roan.vercel.app](https://dera-roan.vercel.app)
+**Live app:** [dera-alpha.vercel.app](https://dera-alpha.vercel.app)
 
 ---
 
