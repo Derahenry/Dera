@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { supabase } from './supabase'
 
 const SAMPLE_EMAIL = `From: noreply@klarna.com
 Subject: Your next payment is due soon
@@ -33,47 +34,15 @@ function EmailParser({ onDebtParsed }) {
     setParsed(null)
     setError('')
 
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY
+    // The AI call runs in the ai-assist Edge Function, so the Groq key stays on the server.
+    const { data, error } = await supabase.functions.invoke('ai-assist', {
+      body: { task: 'parse-email', input: { emailText } },
+    })
 
-    const prompt = `You are a financial data extractor. Read the following BNPL (Buy Now Pay Later) email and extract the key details.
-
-Email content:
-${emailText}
-
-Extract and return ONLY a JSON object with these exact fields:
-{
-  "provider": "one of: Klarna, Clearpay, PayPal Pay in 3, Zilch, Other",
-  "item": "name of the item or purchase",
-  "total": "total amount as a number only, no currency symbol",
-  "due_date": "due date in YYYY-MM-DD format",
-  "instalments": "total number of instalments as a number",
-  "paid": "number of instalments already paid as a number"
-}
-
-If any field cannot be determined from the email, use these defaults: instalments: 3, paid: 0.
-Return ONLY the JSON object, no explanation, no markdown, no code blocks.`
-
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 300,
-        }),
-      })
-
-      const data = await response.json()
-      const text = data.choices?.[0]?.message?.content || ''
-      const clean = text.replace(/```json|```/g, '').trim()
-      const result = JSON.parse(clean)
-      setParsed(result)
-    } catch (err) {
+    if (error || !data?.result) {
       setError('Could not read the email. Try copying more of the email text.')
+    } else {
+      setParsed(data.result)
     }
 
     setLoading(false)

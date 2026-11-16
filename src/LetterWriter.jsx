@@ -1,12 +1,5 @@
 import { useState } from 'react'
-
-const PROVIDERS = {
-  'Klarna': 'Klarna Bank AB',
-  'Clearpay': 'Clearpay Finance Limited',
-  'PayPal Pay in 3': 'PayPal Credit',
-  'Zilch': 'Zilch Technology Limited',
-  'Other': 'the creditor',
-}
+import { supabase } from './supabase'
 
 const providerColors = {
   'Klarna': '#FF7DA8',
@@ -29,38 +22,25 @@ function LetterWriter({ debts }) {
     setLetter('')
 
     const debt = debts.find(d => d.id === selectedDebt)
-    const apiKey = import.meta.env.VITE_GROQ_API_KEY
 
-    const prompt = `You are a professional debt advisor in the UK. Write a formal, polite hardship letter from a customer to ${PROVIDERS[debt.provider] || debt.provider}.
-
-The customer details:
-- Provider: ${debt.provider}
-- Item/purchase: ${debt.item}
-- Amount owed: £${Number(debt.total).toFixed(2)}
-- Due date: ${debt.due_date}
-- Reason for difficulty: ${reason}
-
-Write a short, professional letter requesting a payment extension of 14 days. The tone should be polite, honest, and respectful. Do not include a subject line. Start with "Dear ${PROVIDERS[debt.provider] || debt.provider}," and end with "Yours sincerely," followed by a blank line for their name. Keep it under 200 words.`
-
-    try {
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+    // The AI call runs in the ai-assist Edge Function, so the Groq key stays on the server.
+    const { data, error } = await supabase.functions.invoke('ai-assist', {
+      body: {
+        task: 'letter',
+        input: {
+          provider: debt.provider,
+          item: debt.item,
+          total: debt.total,
+          due_date: debt.due_date,
+          reason,
         },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 500,
-        }),
-      })
+      },
+    })
 
-      const data = await response.json()
-      const text = data.choices?.[0]?.message?.content || ''
-      setLetter(text)
-    } catch (err) {
+    if (error || !data?.result) {
       setLetter('Something went wrong. Please try again.')
+    } else {
+      setLetter(data.result)
     }
 
     setLoading(false)
