@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
+import { FREQUENCY_LABELS, formatGBP, validateDebt } from './debtMath'
 
 const SAMPLE_EMAIL = `From: noreply@klarna.com
 Subject: Your next payment is due soon
@@ -22,11 +23,12 @@ Questions? Visit klarna.com/uk or reply to this email.
 Thanks,
 The Klarna team`
 
-function EmailParser({ onDebtParsed }) {
+function EmailParser({ onDebtParsed, onEditParsed }) {
   const [emailText, setEmailText] = useState('')
   const [loading, setLoading] = useState(false)
   const [parsed, setParsed] = useState(null)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const parseEmail = async () => {
     if (!emailText.trim()) return
@@ -42,26 +44,40 @@ function EmailParser({ onDebtParsed }) {
     if (error || !data?.result) {
       setError('Could not read the email. Try copying more of the email text.')
     } else {
-      setParsed(data.result)
+      // Check the AI's answer before it can be saved.
+      setParsed(validateDebt(data.result))
     }
 
     setLoading(false)
   }
 
-  const handleAddDebt = () => {
-    if (parsed) {
-      onDebtParsed(parsed)
-      setEmailText('')
-      setParsed(null)
+  const handleAddDebt = async () => {
+    if (!parsed || parsed.errors.length > 0) return
+    setSaving(true)
+    setError('')
+    const saveError = await onDebtParsed(parsed.debt)
+    setSaving(false)
+    if (saveError) {
+      setError(saveError)
+      return
     }
+    setEmailText('')
+    setParsed(null)
   }
 
-  const fields = parsed ? [
-    { label: 'Provider', value: parsed.provider },
-    { label: 'Item', value: parsed.item },
-    { label: 'Total', value: `£${Number(parsed.total).toFixed(2)}` },
-    { label: 'Instalments', value: `${parsed.paid} of ${parsed.instalments} paid` },
-    { label: 'Due date', value: parsed.due_date },
+  const handleEdit = () => {
+    if (!parsed) return
+    onEditParsed(parsed.debt)
+  }
+
+  const d = parsed?.debt
+  const fields = d ? [
+    { label: 'Provider', value: d.provider },
+    { label: 'Item', value: d.item || '—' },
+    { label: 'Total', value: Number.isFinite(d.total) ? formatGBP(d.total) : '—' },
+    { label: 'Instalments', value: `${d.paid} of ${d.instalments} paid` },
+    { label: 'How often', value: FREQUENCY_LABELS[d.frequency] },
+    { label: 'Due date', value: d.due_date || '—' },
   ] : []
 
   return (
@@ -117,12 +133,30 @@ function EmailParser({ onDebtParsed }) {
             ))}
           </div>
 
-          <button
-            onClick={handleAddDebt}
-            className="w-full py-3 bg-green-600 text-white rounded-2xl text-sm font-semibold hover:bg-green-700 transition-colors"
-          >
-            Save to my debts
-          </button>
+          {parsed.errors.length > 0 && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-3">
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-1">Please check before saving:</p>
+              <ul className="text-xs text-amber-700 dark:text-amber-300 list-disc pl-4">
+                {parsed.errors.map(e => <li key={e}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex gap-2">
+            <button
+              onClick={handleEdit}
+              className="flex-1 py-3 rounded-2xl text-sm font-semibold bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
+            >
+              Edit first
+            </button>
+            <button
+              onClick={handleAddDebt}
+              disabled={parsed.errors.length > 0 || saving}
+              className="flex-1 py-3 bg-green-600 text-white rounded-2xl text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving…' : 'Save to my debts'}
+            </button>
+          </div>
         </div>
       )}
     </div>

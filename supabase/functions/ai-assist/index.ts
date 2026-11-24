@@ -9,7 +9,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const MODEL = 'llama-3.3-70b-versatile'
+// llama-3.3-70b-versatile was shut down by Groq on 16 Aug 2026; this is their recommended replacement.
+const MODEL = 'openai/gpt-oss-120b'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -66,10 +67,11 @@ Extract and return ONLY a JSON object with these exact fields:
   "total": "total amount as a number only, no currency symbol",
   "due_date": "due date in YYYY-MM-DD format",
   "instalments": "total number of instalments as a number",
-  "paid": "number of instalments already paid as a number"
+  "paid": "number of instalments already paid as a number",
+  "frequency": "how often instalments are due: one of weekly, fortnightly, monthly, or null if the email does not say"
 }
 
-If any field cannot be determined from the email, use these defaults: instalments: 3, paid: 0.`
+If any field cannot be determined from the email, use these defaults: instalments: 3, paid: 0, frequency: null.`
 }
 
 Deno.serve(async (req) => {
@@ -120,7 +122,9 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       model: MODEL,
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: maxTokens,
+      // gpt-oss reasons before answering; keep that short and leave room for the answer itself.
+      reasoning_effort: 'low',
+      max_completion_tokens: maxTokens + 1000,
       ...(wantsJson ? { response_format: { type: 'json_object' } } : {}),
     }),
   })
