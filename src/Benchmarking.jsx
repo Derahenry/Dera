@@ -8,21 +8,12 @@ function Benchmarking({ debts }) {
   const userTotal = debts.reduce((sum, d) => sum + Number(d.total), 0)
   const userCount = debts.length
 
+  // Totals are computed server-side from each user's real debts (one per user, anonymous).
   useEffect(() => {
-    const run = async () => {
-      const today = new Date().toISOString().slice(0, 10)
-      const lastSubmit = localStorage.getItem('dera-benchmark-date')
-
-      if (lastSubmit !== today && userCount > 0) {
-        await supabase.from('benchmarks').insert([{ total_debt: userTotal, debt_count: userCount }])
-        localStorage.setItem('dera-benchmark-date', today)
-      }
-
-      const { data } = await supabase.from('benchmarks').select('total_debt')
+    supabase.rpc('get_benchmark_totals').then(({ data }) => {
       if (data) setRows(data)
       setLoading(false)
-    }
-    run()
+    })
   }, [])
 
   if (loading) {
