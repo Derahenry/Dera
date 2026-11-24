@@ -66,10 +66,11 @@ Extract and return ONLY a JSON object with these exact fields:
   "total": "total amount as a number only, no currency symbol",
   "due_date": "due date in YYYY-MM-DD format",
   "instalments": "total number of instalments as a number",
-  "paid": "number of instalments already paid as a number"
+  "paid": "number of instalments already paid as a number",
+  "frequency": "how often instalments are due: one of weekly, fortnightly, monthly, or null if the email does not say"
 }
 
-If any field cannot be determined from the email, use these defaults: instalments: 3, paid: 0.`
+If any field cannot be determined from the email, use these defaults: instalments: 3, paid: 0, frequency: null.`
 }
 
 Deno.serve(async (req) => {

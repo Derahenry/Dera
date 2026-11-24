@@ -1,25 +1,54 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
+import { FREQUENCIES, FREQUENCY_LABELS, defaultFrequency } from './debtMath'
 
 function AddDebt({ onDebtAdded, onClose, existingDebt }) {
   const [provider, setProvider] = useState(existingDebt?.provider || 'Klarna')
   const [item, setItem] = useState(existingDebt?.item || '')
-  const [total, setTotal] = useState(existingDebt ? String(existingDebt.total) : '')
-  const [instalments, setInstalments] = useState(existingDebt ? String(existingDebt.instalments) : '3')
+  const [total, setTotal] = useState(Number.isFinite(Number(existingDebt?.total)) && existingDebt?.total !== '' && existingDebt?.total != null ? String(existingDebt.total) : '')
+  const [instalments, setInstalments] = useState(
+    Number.isInteger(Number(existingDebt?.instalments)) && Number(existingDebt.instalments) >= 1 ? String(existingDebt.instalments) : '3'
+  )
+  const instalmentOptions = [...new Set([2, 3, 4, 6, 12, Number(instalments)])].sort((a, b) => a - b)
   const [dueDate, setDueDate] = useState(existingDebt?.due_date || '')
+  const [frequency, setFrequency] = useState(existingDebt?.frequency || defaultFrequency(existingDebt?.provider || 'Klarna'))
+  const isEditing = Boolean(existingDebt?.id)
+  const [frequencyTouched, setFrequencyTouched] = useState(Boolean(existingDebt?.frequency))
+  const [paid, setPaid] = useState(() => {
+    const p = Number(existingDebt?.paid)
+    return Number.isInteger(p) && p >= 0 ? String(Math.min(p, Number(instalments) || p)) : '0'
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSubmit = async () => {
-    setLoading(true)
-    setError('')
+  const changeProvider = (value) => {
+    setProvider(value)
+    // Follow the provider's usual schedule until the user picks one themselves.
+    if (!frequencyTouched) setFrequency(defaultFrequency(value))
+  }
 
-    if (existingDebt) {
+  const changeInstalments = (value) => {
+    setInstalments(value)
+    if (Number(paid) > Number(value)) setPaid(value)
+  }
+
+  const handleSubmit = async () => {
+    setError('')
+    const totalNum = parseFloat(total)
+    if (!Number.isFinite(totalNum) || totalNum <= 0) {
+      setError('Enter a total amount above £0.')
+      return
+    }
+    setLoading(true)
+
+    if (isEditing) {
       const { error } = await supabase.from('debts').update({
         provider,
         item,
-        total: parseFloat(total),
+        total: totalNum,
         instalments: parseInt(instalments),
+        paid: parseInt(paid),
+        frequency,
         due_date: dueDate,
       }).eq('id', existingDebt.id)
 
@@ -36,9 +65,10 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
         user_id: user.id,
         provider,
         item,
-        total: parseFloat(total),
+        total: totalNum,
         instalments: parseInt(instalments),
-        paid: 0,
+        paid: parseInt(paid),
+        frequency,
         due_date: dueDate,
         status: 'on-track'
       })
@@ -59,7 +89,7 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
       <div className="bg-white w-full max-w-2xl rounded-t-3xl p-6">
 
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-medium text-gray-900">{existingDebt ? 'Edit debt' : 'Add a debt'}</h2>
+          <h2 className="text-lg font-medium text-gray-900">{isEditing ? 'Edit debt' : 'Add a debt'}</h2>
           <button onClick={onClose} className="text-gray-400 text-sm">Cancel</button>
         </div>
 
@@ -68,7 +98,7 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
           <label className="text-xs text-gray-400 mb-1 block">Provider</label>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={(e) => changeProvider(e.target.value)}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
           >
             <option>Klarna</option>
@@ -108,15 +138,41 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
           <label className="text-xs text-gray-400 mb-1 block">Number of instalments</label>
           <select
             value={instalments}
-            onChange={(e) => setInstalments(e.target.value)}
+            onChange={(e) => changeInstalments(e.target.value)}
             className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
           >
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="6">6</option>
-            <option value="12">12</option>
+            {instalmentOptions.map(n => (
+              <option key={n} value={String(n)}>{n}</option>
+            ))}
           </select>
+        </div>
+
+        {/* Payments made + frequency */}
+        <div className="mb-4 flex gap-3">
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 mb-1 block">Payments made</label>
+            <select
+              value={paid}
+              onChange={(e) => setPaid(e.target.value)}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
+            >
+              {Array.from({ length: Number(instalments) + 1 }, (_, i) => (
+                <option key={i} value={String(i)}>{i} of {instalments}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-gray-400 mb-1 block">How often</label>
+            <select
+              value={frequency}
+              onChange={(e) => { setFrequency(e.target.value); setFrequencyTouched(true) }}
+              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400"
+            >
+              {FREQUENCIES.map(f => (
+                <option key={f} value={f}>{FREQUENCY_LABELS[f]}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Due date */}
@@ -137,7 +193,7 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
           disabled={loading || !item || !total || !dueDate}
           className="w-full py-3 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
         >
-          {loading ? 'Saving...' : existingDebt ? 'Update debt' : 'Add debt'}
+          {loading ? 'Saving...' : isEditing ? 'Update debt' : 'Add debt'}
         </button>
 
       </div>

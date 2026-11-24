@@ -1,11 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import Auth from './Auth'
+import ResetPassword from './ResetPassword'
 import AddDebt from './AddDebt'
 import LetterWriter from './LetterWriter'
 import EmailParser from './EmailParser'
 import Benchmarking from './Benchmarking'
 import OpenBanking from './OpenBanking'
+import PaymentPlan from './PaymentPlan'
+import {
+  daysUntil, dueLabel, formatGBP, instalmentAmount, isPaidOff, nextDueDate,
+  paidCount, parseDate, progress, remaining,
+} from './debtMath'
 
 const providerColors = {
   'Klarna': '#FF7DA8',
@@ -85,16 +91,21 @@ function NavIcon({ tab, active }) {
 
 function App() {
   const [session, setSession] = useState(null)
+  // True after opening a password-reset link from email; shows the "Set a new password" screen.
+  const [recovering, setRecovering] = useState(() => window.location.hash.includes('type=recovery'))
   const [debts, setDebts] = useState([])
   const [showAddDebt, setShowAddDebt] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
   const [toolsTab, setToolsTab] = useState('letter')
-  const [planBudget, setPlanBudget] = useState(120)
-  const [planStrategy, setPlanStrategy] = useState('avalanche')
   const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
+  const [deleteError, setDeleteError] = useState('')
+  const [paymentToast, setPaymentToast] = useState(null) // { debt (before), message, error }
+  const paymentToastTimer = useRef(null)
+  const [payingId, setPayingId] = useState(null)
+  const [showPaidOff, setShowPaidOff] = useState(false)
   const [theme, setTheme] = useState(() => localStorage.getItem('dera-theme') || 'light')
   const [showOnboarding, setShowOnboarding] = useState(() => !localStorage.getItem('dera-onboarded'))
   const [onboardingSlide, setOnboardingSlide] = useState(0)
@@ -141,9 +152,11 @@ function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
     })
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session)
+      if (event === 'PASSWORD_RECOVERY') setRecovering(true)
     })
+    return () => subscription.unsubscribe()
   }, [])
 
   useEffect(() => {
@@ -169,14 +182,10 @@ function App() {
         .select('*')
         .then(({ data }) => {
           if (!data) return
-          const now = new Date()
-          now.setHours(0, 0, 0, 0)
 
-          data.forEach(debt => {
-            const due = new Date(debt.due_date)
-            due.setHours(0, 0, 0, 0)
-            const days = Math.round((due - now) / 86400000)
-            const amount = `£${Number(debt.total).toFixed(2)}`
+          data.filter(debt => !isPaidOff(debt)).forEach(debt => {
+            const days = daysUntil(debt.due_date)
+            const amount = formatGBP(instalmentAmount(debt))
 
             if (days === 0) {
               new Notification('Payment due today', {
@@ -212,9 +221,66 @@ function App() {
   }
 
   const deleteDebt = async () => {
-    await supabase.from('debts').delete().eq('id', confirmDelete.debtId)
+    setDeleteError('')
+    const { error } = await supabase.from('debts').delete().eq('id', confirmDelete.debtId)
+    if (error) {
+      setDeleteError('Could not remove this debt. Please check your connection and try again.')
+      return
+    }
     fetchDebts()
     setConfirmDelete({ show: false, debtId: null, debtName: '' })
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteError('')
+    setConfirmDelete({ show: false, debtId: null, debtName: '' })
+  }
+
+  const showPaymentToast = (toast) => {
+    clearTimeout(paymentToastTimer.current)
+    setPaymentToast(toast)
+    paymentToastTimer.current = setTimeout(() => setPaymentToast(null), 6000)
+  }
+
+  // Record one instalment as paid and move the due date on to the next one.
+  const markPaid = async (debt) => {
+    if (isPaidOff(debt) || payingId) return
+    setPayingId(debt.id)
+    const newPaid = paidCount(debt) + 1
+    const finished = newPaid >= debt.instalments
+    const update = {
+      paid: newPaid,
+      due_date: finished ? debt.due_date : nextDueDate(debt.due_date, debt.frequency),
+    }
+    const { error } = await supabase.from('debts').update(update).eq('id', debt.id)
+    setPayingId(null)
+    if (error) {
+      showPaymentToast({ error: 'Could not record the payment. Please try again.' })
+      return
+    }
+    await fetchDebts()
+    showPaymentToast({
+      debt,
+      message: finished
+        ? `${debt.item} is paid off 🎉`
+        : `Payment recorded · ${newPaid}/${debt.instalments} paid`,
+    })
+  }
+
+  const undoPayment = async () => {
+    const before = paymentToast?.debt
+    if (!before) return
+    clearTimeout(paymentToastTimer.current)
+    setPaymentToast(null)
+    const { error } = await supabase
+      .from('debts')
+      .update({ paid: before.paid, due_date: before.due_date })
+      .eq('id', before.id)
+    if (error) {
+      showPaymentToast({ error: 'Could not undo. Edit the debt to fix it.' })
+      return
+    }
+    fetchDebts()
   }
 
   const completeOnboarding = () => {
@@ -222,58 +288,49 @@ function App() {
     setShowOnboarding(false)
   }
 
-  const handleParsedDebt = async (parsedDebt) => {
+  // Receives a debt already checked by validateDebt in EmailParser. Returns an error message or null.
+  const handleParsedDebt = async (debt) => {
     const { error } = await supabase.from('debts').insert([{
-      provider: parsedDebt.provider,
-      item: parsedDebt.item,
-      total: parsedDebt.total,
-      due_date: parsedDebt.due_date,
-      instalments: parsedDebt.instalments,
-      paid: parsedDebt.paid,
+      ...debt,
       status: 'on-track',
       user_id: session.user.id,
     }])
-    if (!error) {
-      fetchDebts()
-      setActiveTab('home')
-    }
+    if (error) return 'Could not save this debt. Please try again.'
+    fetchDebts()
+    setActiveTab('home')
+    return null
   }
 
-  const totalDebt = debts.reduce((sum, d) => sum + Number(d.total), 0)
+  // Active debts still have instalments to pay; paid-off ones are kept for the "Paid off" section.
+  const activeDebts = debts.filter(d => !isPaidOff(d))
+  const paidOffDebts = debts.filter(d => isPaidOff(d))
 
-  const dueThisWeek = debts.filter(d => {
-    const days = Math.ceil((new Date(d.due_date) - new Date()) / 86400000)
+  const totalDebt = activeDebts.reduce((sum, d) => sum + remaining(d), 0)
+
+  const dueThisWeek = activeDebts.filter(d => {
+    const days = daysUntil(d.due_date)
     return days >= 0 && days <= 7
   })
 
-  const dueThisWeekTotal = dueThisWeek.reduce((sum, d) => sum + Number(d.total), 0)
+  const dueThisWeekTotal = dueThisWeek.reduce((sum, d) => sum + instalmentAmount(d), 0)
 
   // Wellbeing score (shared between home mini card and insights tab)
-  const overdueCount = debts.filter(d => Math.ceil((new Date(d.due_date) - new Date()) / 86400000) < 0).length
-  const dueSoon3Count = debts.filter(d => { const days = Math.ceil((new Date(d.due_date) - new Date()) / 86400000); return days >= 0 && days <= 3 }).length
+  const overdueCount = activeDebts.filter(d => daysUntil(d.due_date) < 0).length
+  const dueSoon3Count = activeDebts.filter(d => { const days = daysUntil(d.due_date); return days >= 0 && days <= 3 }).length
   const timelinessScore = Math.max(0, 100 - overdueCount * 40 - dueSoon3Count * 10)
-  const debtLoadScore = Math.max(0, 100 - debts.length * 10)
+  const debtLoadScore = Math.max(0, 100 - activeDebts.length * 10)
   const repaymentScore = debts.length > 0
-    ? Math.round(debts.reduce((s, d) => s + (d.paid / d.instalments), 0) / debts.length * 100)
+    ? Math.round(debts.reduce((s, d) => s + progress(d), 0) / debts.length)
     : 100
   const wellbeingScore = Math.round((timelinessScore + debtLoadScore + repaymentScore) / 3)
   const wellbeingColor = wellbeingScore >= 70 ? '#16A34A' : wellbeingScore >= 40 ? '#D97706' : '#DC2626'
   const wellbeingLabel = wellbeingScore >= 70 ? 'Looking good' : wellbeingScore >= 40 ? 'Doing okay' : 'Needs attention'
 
   // Risk banner
-  const atRiskDebts = [...debts]
-    .map(d => ({ ...d, days: Math.ceil((new Date(d.due_date) - new Date()) / 86400000) }))
+  const atRiskDebts = activeDebts
+    .map(d => ({ ...d, days: daysUntil(d.due_date) }))
     .filter(d => d.days <= 3)
     .sort((a, b) => a.days - b.days)
-
-  // Repayment planner
-  const totalRemaining = debts.reduce((sum, d) => sum + Number(d.total) * (1 - d.paid / d.instalments), 0)
-  const planMonths = totalRemaining > 0 ? Math.ceil(totalRemaining / planBudget) : 0
-  const planSortedDebts = [...debts].sort((a, b) =>
-    planStrategy === 'avalanche'
-      ? Number(b.total) - Number(a.total)
-      : Number(a.total) - Number(b.total)
-  )
 
   const userInitial = session?.user?.email?.[0]?.toUpperCase() || 'A'
 
@@ -299,6 +356,17 @@ function App() {
       </div>
     </div>
   )
+
+  if (recovering && session) {
+    return (
+      <ResetPassword
+        onDone={() => {
+          setRecovering(false)
+          window.history.replaceState({}, '', window.location.pathname)
+        }}
+      />
+    )
+  }
 
   if (!session) return <Auth />
 
@@ -469,7 +537,7 @@ function App() {
               <div className="flex gap-6 mt-5 pt-5 border-t border-white border-opacity-20">
                 <div>
                   <p className="text-purple-200 text-xs">Active plans</p>
-                  <p className="text-white font-bold text-lg mt-0.5">{debts.length}</p>
+                  <p className="text-white font-bold text-lg mt-0.5">{activeDebts.length}</p>
                 </div>
                 <div className="w-px bg-white opacity-20" />
                 <div>
@@ -513,7 +581,7 @@ function App() {
                 </div>
                 <div className="flex gap-3 overflow-x-auto pb-1">
                   {dueThisWeek.map(debt => {
-                    const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
+                    const days = daysUntil(debt.due_date)
                     const color = providerColors[debt.provider] || '#8B5CF6'
                     return (
                       <div key={debt.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-slate-700 flex-shrink-0 min-w-32">
@@ -521,7 +589,7 @@ function App() {
                           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
                           <p className="text-xs text-gray-500 dark:text-slate-400">{debt.provider}</p>
                         </div>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{formatGBP(instalmentAmount(debt))}</p>
                         <p className="text-xs mt-1 font-medium" style={{ color: days <= 3 ? '#DC2626' : '#D97706' }}>
                           {days === 0 ? 'Due today' : `${days} day${days === 1 ? '' : 's'} left`}
                         </p>
@@ -558,16 +626,18 @@ function App() {
                     Try again
                   </button>
                 </div>
-              ) : debts.length === 0 ? (
+              ) : activeDebts.length === 0 ? (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-slate-700">
-                  <p className="text-gray-400 dark:text-slate-500 text-sm">No debts added yet</p>
-                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Tap + to get started</p>
+                  <p className="text-gray-400 dark:text-slate-500 text-sm">
+                    {paidOffDebts.length > 0 ? 'Nothing left to pay 🎉' : 'No debts added yet'}
+                  </p>
+                  <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Tap + to add a debt</p>
                 </div>
               ) : (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
-                  {debts.map((debt) => {
+                  {activeDebts.map((debt) => {
                     const color = providerColors[debt.provider] || '#8B5CF6'
-                    const progress = (debt.paid / debt.instalments) * 100
+                    const pct = progress(debt)
                     return (
                       <div key={debt.id} className="p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -576,7 +646,7 @@ function App() {
                             <p className="text-sm font-medium text-gray-900 dark:text-white">{debt.provider}</p>
                           </div>
                           <div className="flex items-center gap-3">
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{formatGBP(remaining(debt))}</p>
                             <button
                               onClick={() => setEditingDebt(debt)}
                               className="w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-slate-700 text-gray-400 dark:text-slate-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 hover:text-indigo-500 transition-colors"
@@ -600,7 +670,7 @@ function App() {
                         </div>
                         <p className="text-xs text-gray-400 dark:text-slate-500 mb-2 ml-4">{debt.item}</p>
                         <div className="ml-4 h-1 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full transition-all" style={{ width: `${progress}%`, backgroundColor: color }} />
+                          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: color }} />
                         </div>
                       </div>
                     )
@@ -610,24 +680,22 @@ function App() {
             </div>
 
             {/* Your debts */}
-            {!loading && !fetchError && debts.length > 0 && (
+            {!loading && !fetchError && activeDebts.length > 0 && (
               <div className="mt-6 mb-2">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Your debts</p>
                 <div className="flex flex-col gap-3">
-                  {debts.map(debt => {
+                  {activeDebts.map(debt => {
                     const color = providerColors[debt.provider] || '#9AA0B5'
-                    const progress = Math.min(100, (debt.paid / debt.instalments) * 100)
-                    const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
-                    const computedStatus = days < 0 ? 'due-soon' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
+                    const pct = progress(debt)
+                    const days = daysUntil(debt.due_date)
+                    const computedStatus = days < 0 ? 'overdue' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
                     const statusConfig = {
+                      'overdue': { label: 'Overdue', cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' },
                       'due-soon': { label: 'Due soon', cls: 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' },
                       'upcoming': { label: 'Upcoming', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400' },
                       'on-track': { label: 'On track', cls: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' },
                     }[computedStatus]
-                    const dueLabel = days < 0
-                      ? `${Math.abs(days)}d overdue`
-                      : days === 0 ? 'Due today'
-                      : `${days} day${days === 1 ? '' : 's'} left`
+                    const dueText = dueLabel(days)
                     const dueLabelColor = days <= 0 ? '#EF4444' : days <= 3 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#9AA0B5'
 
                     return (
@@ -645,16 +713,19 @@ function App() {
 
                         {/* Subtitle */}
                         <p className="text-xs text-gray-400 dark:text-slate-500 mb-4 pl-[18px]">
-                          {debt.provider} · {debt.paid}/{debt.instalments} paid
+                          {debt.provider} · {paidCount(debt)}/{debt.instalments} paid · {formatGBP(remaining(debt))} of {formatGBP(debt.total)} left
                         </p>
 
-                        {/* Amount + due date */}
+                        {/* Next instalment + due date */}
                         <div className="flex items-end justify-between mb-2.5">
-                          <p className="text-xl font-bold text-gray-900 dark:text-white">
-                            £{Number(debt.total).toFixed(2)}
-                          </p>
+                          <div>
+                            <p className="text-xs text-gray-400 dark:text-slate-500">Next payment</p>
+                            <p className="text-xl font-bold text-gray-900 dark:text-white">
+                              {formatGBP(instalmentAmount(debt))}
+                            </p>
+                          </div>
                           <p className="text-xs font-semibold" style={{ color: dueLabelColor }}>
-                            {dueLabel}
+                            {dueText}
                           </p>
                         </div>
 
@@ -662,13 +733,64 @@ function App() {
                         <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all"
-                            style={{ width: `${progress}%`, backgroundColor: color }}
+                            style={{ width: `${pct}%`, backgroundColor: color }}
                           />
                         </div>
+
+                        <button
+                          onClick={() => markPaid(debt)}
+                          disabled={payingId !== null}
+                          className="mt-3 w-full py-2 rounded-xl text-xs font-semibold bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors disabled:opacity-50"
+                        >
+                          {payingId === debt.id ? 'Saving…' : `Mark payment made (${paidCount(debt) + 1} of ${debt.instalments})`}
+                        </button>
                       </div>
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Paid off */}
+            {!loading && !fetchError && paidOffDebts.length > 0 && (
+              <div className="mt-6 mb-2">
+                <button
+                  onClick={() => setShowPaidOff(s => !s)}
+                  className="w-full flex items-center justify-between mb-3"
+                  aria-expanded={showPaidOff}
+                >
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Paid off <span className="text-gray-400 dark:text-slate-500 font-normal">({paidOffDebts.length})</span>
+                  </p>
+                  <svg width="16" height="16" fill="none" viewBox="0 0 24 24" className={`text-gray-400 transition-transform ${showPaidOff ? 'rotate-90' : ''}`}>
+                    <path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </button>
+                {showPaidOff && (
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm divide-y divide-gray-50 dark:divide-slate-700">
+                    {paidOffDebts.map(debt => (
+                      <div key={debt.id} className="p-4 flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 flex items-center justify-center text-xs font-bold flex-shrink-0">✓</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{debt.item}</p>
+                          <p className="text-xs text-gray-400 dark:text-slate-500">{debt.provider} · {formatGBP(debt.total)} paid</p>
+                        </div>
+                        <button
+                          onClick={() => setEditingDebt(debt)}
+                          className="text-xs text-gray-400 dark:text-slate-500 hover:text-indigo-500"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setConfirmDelete({ show: true, debtId: debt.id, debtName: `${debt.provider} — ${debt.item}` })}
+                          className="text-xs text-red-400 hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -680,7 +802,7 @@ function App() {
             <div className="mb-5">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Payments</h2>
               <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
-                £{totalDebt.toFixed(2)} across {debts.length} upcoming date{debts.length !== 1 ? 's' : ''}
+                Next {activeDebts.length} payment{activeDebts.length !== 1 ? 's' : ''} · {formatGBP(activeDebts.reduce((s, d) => s + instalmentAmount(d), 0))}
               </p>
             </div>
 
@@ -688,16 +810,16 @@ function App() {
               <div className="flex justify-center py-12">
                 <div className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-slate-600 border-t-indigo-600 animate-spin" />
               </div>
-            ) : debts.length === 0 ? (
+            ) : activeDebts.length === 0 ? (
               <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-slate-700">
                 <p className="text-gray-400 dark:text-slate-500 text-sm">No upcoming payments</p>
                 <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Add a debt to see your schedule</p>
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {[...debts].sort((a, b) => new Date(a.due_date) - new Date(b.due_date)).map(debt => {
+                {[...activeDebts].sort((a, b) => daysUntil(a.due_date) - daysUntil(b.due_date)).map(debt => {
                   const color = providerColors[debt.provider] || '#9AA0B5'
-                  const days = Math.ceil((new Date(debt.due_date) - new Date()) / 86400000)
+                  const days = daysUntil(debt.due_date)
                   const urgency = days < 0 ? 'overdue' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
 
                   const dateBlockColors = {
@@ -714,14 +836,11 @@ function App() {
                     'on-track': 'bg-green-900/30 text-green-400',
                   }[urgency]
 
-                  const dueLabel = days < 0
-                    ? `${Math.abs(days)}d overdue`
-                    : days === 0 ? 'Due today'
-                    : `${days} day${days === 1 ? '' : 's'} left`
+                  const dueText = dueLabel(days)
 
                   const dueLabelColor = days <= 0 ? '#EF4444' : days <= 3 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#9AA0B5'
 
-                  const due = new Date(debt.due_date)
+                  const due = parseDate(debt.due_date)
                   const month = due.toLocaleString('en-GB', { month: 'short' }).toUpperCase()
                   const day = due.getDate()
 
@@ -747,10 +866,10 @@ function App() {
                             <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                             <p className="text-sm font-semibold text-gray-900 dark:text-white">{debt.provider}</p>
                           </div>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">£{Number(debt.total).toFixed(2)}</p>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGBP(instalmentAmount(debt))}</p>
                         </div>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 pl-4 mb-2 truncate">{debt.item}</p>
-                        <p className="text-xs font-semibold pl-4" style={{ color: dueLabelColor }}>{dueLabel}</p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500 pl-4 mb-2 truncate">{debt.item} · payment {paidCount(debt) + 1} of {debt.instalments}</p>
+                        <p className="text-xs font-semibold pl-4" style={{ color: dueLabelColor }}>{dueText}</p>
                       </div>
                     </div>
                   )
@@ -835,79 +954,7 @@ function App() {
               })}
             </div>
 
-            {/* Repayment planner */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Repayment planner</p>
-
-              {/* Budget slider */}
-              <div className="mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="text-xs text-gray-500 dark:text-slate-400">Monthly budget</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">£{planBudget}/mo</p>
-                </div>
-                <input
-                  type="range" min="40" max="240" step="10"
-                  value={planBudget}
-                  onChange={e => setPlanBudget(Number(e.target.value))}
-                  className="w-full accent-indigo-600"
-                />
-                <div className="flex justify-between mt-1">
-                  <span className="text-xs text-gray-300 dark:text-slate-600">£40</span>
-                  <span className="text-xs text-gray-300 dark:text-slate-600">£240</span>
-                </div>
-              </div>
-
-              {/* Strategy toggle */}
-              <div className="flex gap-2 mb-4">
-                {[{ id: 'avalanche', label: 'Avalanche' }, { id: 'snowball', label: 'Snowball' }].map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setPlanStrategy(s.id)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-colors ${
-                      planStrategy === s.id
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 dark:bg-slate-700 text-gray-500 dark:text-slate-400 hover:bg-gray-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Ranked debt list */}
-              {planSortedDebts.length === 0 ? (
-                <p className="text-xs text-gray-400 dark:text-slate-500 text-center py-4">Add debts to build a plan</p>
-              ) : (
-                <div className="flex flex-col gap-2 mb-4">
-                  {planSortedDebts.map((debt, i) => {
-                    const color = providerColors[debt.provider] || '#9AA0B5'
-                    const remaining = Number(debt.total) * (1 - debt.paid / debt.instalments)
-                    return (
-                      <div key={debt.id} className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-slate-700/50">
-                        <span className="text-xs font-bold text-gray-300 dark:text-slate-500 w-4 text-center flex-shrink-0">{i + 1}</span>
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-gray-800 dark:text-white truncate">{debt.item}</p>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">{debt.provider}</p>
-                        </div>
-                        <p className="text-xs font-bold text-gray-600 dark:text-slate-300 flex-shrink-0">£{remaining.toFixed(0)} left</p>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {/* Result card */}
-              {debts.length > 0 && (
-                <div className={`rounded-xl p-4 text-center ${planMonths === 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
-                  <p className="text-sm font-bold text-green-800 dark:text-green-300">
-                    {planMonths === 0
-                      ? "You're already debt-free!"
-                      : `At £${planBudget}/mo you'll be debt-free in ~${planMonths} month${planMonths !== 1 ? 's' : ''}`}
-                  </p>
-                </div>
-              )}
-            </div>
+            <PaymentPlan debts={activeDebts} providerColors={providerColors} />
 
             <Benchmarking debts={debts} />
 
@@ -937,7 +984,7 @@ function App() {
             </div>
 
             {toolsTab === 'letter' && <LetterWriter debts={debts} />}
-            {toolsTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} />}
+            {toolsTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} onEditParsed={debt => setEditingDebt(debt)} />}
             {toolsTab === 'banking' && <OpenBanking />}
           </div>
         )}
@@ -1095,7 +1142,7 @@ function App() {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center px-6"
           style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-          onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
+          onClick={closeDeleteModal}
         >
           <div
             className="bg-white dark:bg-slate-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl"
@@ -1115,9 +1162,13 @@ function App() {
               This will remove <span className="text-gray-600 dark:text-slate-300 font-medium">{confirmDelete.debtName}</span> from your DERA
             </p>
 
+            {deleteError && (
+              <p className="text-xs text-red-500 text-center mt-3">{deleteError}</p>
+            )}
+
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => setConfirmDelete({ show: false, debtId: null, debtName: '' })}
+                onClick={closeDeleteModal}
                 className="flex-1 py-2.5 rounded-2xl bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-slate-600 transition-colors"
               >
                 Cancel
@@ -1129,6 +1180,22 @@ function App() {
                 Remove
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment recorded toast with Undo */}
+      {paymentToast && (
+        <div className="fixed bottom-28 left-0 right-0 z-50 flex justify-center px-4 pointer-events-none">
+          <div className="pointer-events-auto max-w-sm w-full bg-gray-900 dark:bg-slate-700 text-white rounded-2xl shadow-xl px-4 py-3 flex items-center gap-3" role="status">
+            <p className={`flex-1 text-sm ${paymentToast.error ? 'text-red-300' : ''}`}>
+              {paymentToast.error || paymentToast.message}
+            </p>
+            {paymentToast.debt && (
+              <button onClick={undoPayment} className="text-sm font-semibold text-indigo-300 hover:text-indigo-200">
+                Undo
+              </button>
+            )}
           </div>
         </div>
       )}
