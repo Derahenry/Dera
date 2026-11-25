@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import { Icon } from '../ui'
+import {
+  canPromptInstall, disableReminders, enableReminders, isIOS, isInstalled, isSubscribed,
+  onInstallChange, promptInstall, pushSupport, sendTestReminder,
+} from '../push'
 
 const THEMES = [
   { id: 'system', label: 'System' },
@@ -8,16 +12,21 @@ const THEMES = [
   { id: 'dark', label: 'Dark' },
 ]
 
-function notificationState() {
-  if (!('Notification' in window)) return 'unsupported'
-  return Notification.permission // 'granted' | 'denied' | 'default'
+// 'checking' | 'on' | 'off' | 'denied' | 'needs-install' | 'unsupported'
+function startingState() {
+  const support = pushSupport()
+  if (support !== 'ok') return support
+  if (Notification.permission === 'denied') return 'denied'
+  return 'checking'
 }
 
-const NOTIFICATION_TEXT = {
-  granted: 'On · reminders 3 days before and on the day',
-  default: 'Off · get reminders before payments are due',
+const REMINDER_TEXT = {
+  checking: 'Checking…',
+  on: 'On · 3 days before and on the day, even when DERA is closed',
+  off: 'Off · get a reminder before each payment is due',
   denied: "Blocked · allow notifications for DERA in your browser's settings",
-  unsupported: "Your browser doesn't support notifications",
+  'needs-install': 'Add DERA to your Home Screen first, then turn them on there',
+  unsupported: "This browser can't show reminders",
 }
 
 function Group({ title, children }) {
@@ -47,17 +56,48 @@ function Row({ icon, label, detail, action, onClick, danger }) {
 }
 
 function Settings({ session, theme, onThemeChange }) {
-  const [notif, setNotif] = useState(notificationState)
+  const [reminders, setReminders] = useState(startingState)
+  const [reminderBusy, setReminderBusy] = useState(false)
+  const [reminderMsg, setReminderMsg] = useState('')
+  const [canInstall, setCanInstall] = useState(canPromptInstall)
+  const [showIosSteps, setShowIosSteps] = useState(false)
   const [resetMsg, setResetMsg] = useState('')
   const name = session?.user?.user_metadata?.full_name || 'Your account'
   const email = session?.user?.email || ''
   const initial = (name !== 'Your account' ? name : email)[0]?.toUpperCase() || 'D'
+  const installed = isInstalled()
 
-  const turnOnNotifications = async () => {
-    if (notif !== 'default') return
-    const result = await Notification.requestPermission()
-    setNotif(result)
-    if (result === 'granted') navigator.serviceWorker?.register('/sw.js').catch(() => {})
+  useEffect(() => {
+    if (reminders !== 'checking') return
+    isSubscribed().then(on => setReminders(on ? 'on' : 'off')).catch(() => setReminders('off'))
+  }, [reminders])
+
+  useEffect(() => onInstallChange(() => setCanInstall(canPromptInstall())), [])
+
+  const turnOn = async () => {
+    setReminderBusy(true)
+    setReminderMsg('')
+    const result = await enableReminders()
+    setReminderBusy(false)
+    if (result === 'on') setReminders('on')
+    else if (result === 'denied') setReminders('denied')
+    else setReminderMsg("Couldn't turn reminders on. Try again.")
+  }
+
+  const turnOff = async () => {
+    setReminderBusy(true)
+    setReminderMsg('')
+    await disableReminders().catch(() => {})
+    setReminderBusy(false)
+    setReminders('off')
+  }
+
+  const sendTest = async () => {
+    setReminderBusy(true)
+    setReminderMsg('Sending…')
+    const error = await sendTestReminder()
+    setReminderBusy(false)
+    setReminderMsg(error || 'Sent. It should arrive in a few seconds.')
   }
 
   const changePassword = async () => {
@@ -101,14 +141,58 @@ function Settings({ session, theme, onThemeChange }) {
         <Row
           icon="bell"
           label="Payment reminders"
-          detail={NOTIFICATION_TEXT[notif]}
-          action={notif === 'default' && (
-            <button onClick={turnOnNotifications} className="press px-4 py-2 rounded-full bg-inverse text-on-inverse text-sm font-semibold">
-              Turn on
+          detail={reminderMsg || REMINDER_TEXT[reminders]}
+          action={reminders === 'off' ? (
+            <button onClick={turnOn} disabled={reminderBusy} className="press px-4 py-2 rounded-full bg-inverse text-on-inverse text-sm font-semibold disabled:opacity-50 flex-shrink-0">
+              {reminderBusy ? 'Turning on…' : 'Turn on'}
             </button>
-          )}
+          ) : null}
         />
+        {reminders === 'on' && (
+          <div className="flex gap-2 px-4 py-3">
+            <button onClick={sendTest} disabled={reminderBusy} className="press flex-1 py-2.5 rounded-full bg-surface-2 text-ink text-sm font-semibold disabled:opacity-50">
+              Send a test
+            </button>
+            <button onClick={turnOff} disabled={reminderBusy} className="press flex-1 py-2.5 rounded-full bg-surface-2 text-ink-2 text-sm font-semibold disabled:opacity-50">
+              Turn off
+            </button>
+          </div>
+        )}
       </Group>
+
+      {!installed && (canInstall || isIOS()) && (
+        <Group title="App">
+          {canInstall ? (
+            <Row
+              icon="download"
+              label="Install DERA"
+              detail="Open it from your home screen like any other app"
+              action={(
+                <button onClick={() => promptInstall()} className="press px-4 py-2 rounded-full bg-inverse text-on-inverse text-sm font-semibold flex-shrink-0">
+                  Install
+                </button>
+              )}
+            />
+          ) : (
+            <>
+              <Row
+                icon="download"
+                label="Add DERA to your Home Screen"
+                detail="Needed on iPhone for payment reminders"
+                onClick={() => setShowIosSteps(s => !s)}
+              />
+              {showIosSteps && (
+                <ol className="px-5 py-4 text-sm text-ink-2 list-decimal list-inside flex flex-col gap-1.5">
+                  <li>Open DERA in Safari</li>
+                  <li>Tap the Share button (square with an arrow)</li>
+                  <li>Tap <span className="font-semibold text-ink">Add to Home Screen</span>, then Add</li>
+                  <li>Open DERA from your Home Screen and turn reminders on here</li>
+                </ol>
+              )}
+            </>
+          )}
+        </Group>
+      )}
 
       <Group title="Account">
         <Row icon="lock" label="Change password" detail={resetMsg || 'Get a link by email to set a new one'} onClick={changePassword} />
