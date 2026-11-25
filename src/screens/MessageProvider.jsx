@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { askAI } from '../ai'
+import { isDemo } from '../supabase'
 import { Icon, ProviderBadge } from '../ui'
 import { daysUntil, formatGBP, formatLongDate, instalmentAmount, remaining } from '../debtMath'
 import { FREE_ADVICE, PROVIDER_HELP, RIGHTS_NOTE } from '../providerHelp'
@@ -242,7 +243,9 @@ function MessageProvider({ debts, userName, initialDebtId, onAddDebt }) {
               style={{ fieldSizing: 'content' }}
               className="w-full text-[15px] leading-relaxed text-ink bg-transparent resize-none focus:outline-none"
             />
-            <p className="text-xs text-ink-3 mt-1">You can edit this before you send it.</p>
+            <p className="text-xs text-ink-3 mt-1">
+              You can edit this before you send it.{isDemo() && ' In the demo, this is an example message, not written by AI.'}
+            </p>
           </div>
 
           {/* Where to send it */}

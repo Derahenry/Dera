@@ -1,10 +1,20 @@
 # DERA
 
+[![CI](https://github.com/Derahenry/Dera/actions/workflows/ci.yml/badge.svg)](https://github.com/Derahenry/Dera/actions/workflows/ci.yml)
+
 **A Buy Now Pay Later debt tracker for UK university students.**
 
 Klarna, Clearpay, PayPal Pay in 3 and Zilch each show you only your own plans. DERA puts every BNPL plan in one place, shows what's due and when, spots new purchases from your emails, and helps you ask a provider for support before a missed payment turns into a fee or a credit file mark.
 
-**Live app:** [dera-alpha.vercel.app](https://dera-alpha.vercel.app)
+**Live app:** [dera-alpha.vercel.app](https://dera-alpha.vercel.app) · **[Try the demo, no sign-up](https://dera-alpha.vercel.app/?demo)**
+
+<p>
+  <img src="docs/screenshots/home.jpg" alt="Home: what's left to pay, quick actions, wellbeing score and a detected purchase" width="200">
+  <img src="docs/screenshots/insights.jpg" alt="Insights: payments needing attention, wellbeing score and key numbers" width="200">
+  <img src="docs/screenshots/calendar.jpg" alt="Calendar: a month view of every payment, with overdue ones highlighted" width="200">
+  <img src="docs/screenshots/message.jpg" alt="Message your provider: pick a plan, what you need and why" width="200">
+  <img src="docs/screenshots/home-dark.jpg" alt="Home in dark mode" width="200">
+</p>
 
 ---
 
@@ -87,6 +97,18 @@ npm run dev
 
 To regenerate the app icons, run `npm run icons`.
 
+### Demo mode
+
+The sign-in screen has a **Try the demo** button, and `/?demo` opens it directly. The demo runs on sample data held in the browser (`src/demo.js` stands in for Supabase), so nothing is saved and no account is needed. The AI tools return example answers.
+
+## Testing
+
+```bash
+npm test
+```
+
+[Vitest](https://vitest.dev) tests cover the money and date maths in `src/debtMath.js` (month-ends, leap years, the clocks changing, amounts, schedules, checking AI answers) and the demo data layer. GitHub Actions runs lint, tests and a build on every pull request.
+
 ## Project structure
 
 ```
@@ -105,6 +127,8 @@ src/
   ResetPassword.jsx     Set a new password from the email link
   ai.js                 Calls the AI function and shows its messages
   push.js               Payment reminders (Web Push) and the install prompt
+  demo.js               Demo mode: sample data in memory instead of Supabase
+  *.test.js             Tests (Vitest)
   debtMath.js           Dates, schedules, amounts and validation
   providerHelp.js       Provider support contacts and free advice services
   ui.jsx                Shared components (icons, sheet, bottom bar)
@@ -112,12 +136,15 @@ src/
 public/
   sw.js                 Service worker: shows reminders, opens DERA on tap
   manifest.json         Install details and icons
+  privacy.html          Privacy policy
 supabase/
   functions/ai-assist/       Server-side AI calls, with the daily limit
   functions/send-reminders/  Daily reminders and the Settings test
   migrations/                Database changes, in date order
 scripts/
   generate-icons.js     Rebuilds the app icons
+docs/screenshots/       Images for this README
+.github/workflows/      CI: lint, tests and build
 vercel.json             Security headers
 ```
 
@@ -132,7 +159,8 @@ vercel.json             Security headers
 - [x] Security headers and a daily AI limit
 - [ ] Forwarded emails feeding detected purchases automatically
 - [ ] Open banking via TrueLayer
-- [ ] Automated tests
+- [x] Automated tests and CI
+- [x] Demo mode and privacy policy
 
 ## Author
 

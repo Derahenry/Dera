@@ -26,6 +26,7 @@ const REMINDER_TEXT = {
   off: 'Off · get a reminder before each payment is due',
   denied: "Blocked · allow notifications for DERA in your browser's settings",
   'needs-install': 'Add DERA to your Home Screen first, then turn them on there',
+  demo: 'Create an account to get reminders on your phone',
   unsupported: "This browser can't show reminders",
 }
 
@@ -55,8 +56,8 @@ function Row({ icon, label, detail, action, onClick, danger }) {
   )
 }
 
-function Settings({ session, theme, onThemeChange }) {
-  const [reminders, setReminders] = useState(startingState)
+function Settings({ session, theme, onThemeChange, demo = false, onExitDemo }) {
+  const [reminders, setReminders] = useState(() => (demo ? 'demo' : startingState()))
   const [reminderBusy, setReminderBusy] = useState(false)
   const [reminderMsg, setReminderMsg] = useState('')
   const [canInstall, setCanInstall] = useState(canPromptInstall)
@@ -195,8 +196,14 @@ function Settings({ session, theme, onThemeChange }) {
       )}
 
       <Group title="Account">
-        <Row icon="lock" label="Change password" detail={resetMsg || 'Get a link by email to set a new one'} onClick={changePassword} />
-        <Row icon="logout" label="Sign out" onClick={() => supabase.auth.signOut()} danger />
+        {demo ? (
+          <Row icon="logout" label="Exit demo" detail="Back to sign in. Nothing from the demo is kept." onClick={onExitDemo} danger />
+        ) : (
+          <>
+            <Row icon="lock" label="Change password" detail={resetMsg || 'Get a link by email to set a new one'} onClick={changePassword} />
+            <Row icon="logout" label="Sign out" onClick={() => supabase.auth.signOut()} danger />
+          </>
+        )}
       </Group>
 
       <Group title="Help">
@@ -209,6 +216,16 @@ function Settings({ session, theme, onThemeChange }) {
             <p className="text-xs text-ink-3 mt-0.5">StepChange · 0800 138 1111</p>
           </div>
           <Icon name="external" size={16} className="text-ink-3" />
+        </a>
+        <a href="/privacy.html" className="press w-full flex items-center gap-3 px-4 py-4">
+          <span className="w-9 h-9 rounded-full bg-surface-2 text-ink flex items-center justify-center flex-shrink-0">
+            <Icon name="lock" size={18} />
+          </span>
+          <div className="flex-1">
+            <p className="text-[15px] font-medium text-ink">Privacy</p>
+            <p className="text-xs text-ink-3 mt-0.5">What DERA stores and why</p>
+          </div>
+          <Icon name="chevron" size={16} className="text-ink-3" />
         </a>
       </Group>
 

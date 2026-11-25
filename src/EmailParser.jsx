@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { askAI } from './ai'
+import { isDemo } from './supabase'
 import { validateDebt } from './debtMath'
 import DetectedCard from './DetectedCard'
 
@@ -69,6 +70,7 @@ function EmailParser({ onDetected, pending, actions, onDone }) {
     <div className="flex flex-col gap-5 pb-4">
       <p className="text-sm text-ink-3 leading-relaxed">
         Paste a BNPL confirmation email and DERA will pick out the purchase. Only the details are saved, never the email.
+        {isDemo() && ' In the demo, the AI returns an example purchase.'}
       </p>
 
       {/* Email textarea */}
