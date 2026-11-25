@@ -14,12 +14,13 @@ import Onboarding from './screens/Onboarding'
 import Settings from './screens/Settings'
 import { BottomNav, Sheet } from './ui'
 import {
-  daysUntil, formatGBP, instalmentAmount, isPaidOff, nextDueDate,
+  daysUntil, isPaidOff, nextDueDate,
   paidCount, progress, validateDebt,
 } from './debtMath'
 import {
   fetchPending, findDuplicateDebt, matches, savePending, setPendingStatus, toDebtDraft,
 } from './pendingPurchases'
+import { showLocalNotification, syncReminders } from './push'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -93,49 +94,12 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
+  // Payment reminders now come from the server (send-reminders), even when the
+  // app is closed. On sign-in, keep this device linked to whoever is signed in.
+  const signedInId = session?.user?.id
   useEffect(() => {
-    if (!session) return
-    if (!('serviceWorker' in navigator) || !('Notification' in window)) return
-
-    // Only remind people who have already said yes; asking happens in Settings
-    // after a tap, never as a surprise pop-up when the app opens.
-    if (Notification.permission !== 'granted') return
-
-    const today = new Date().toISOString().slice(0, 10)
-    try { if (localStorage.getItem('dera-last-notif-check') === today) return } catch { /* check anyway */ }
-
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
-
-    {
-      try { localStorage.setItem('dera-last-notif-check', today) } catch { /* may remind again today */ }
-
-      supabase
-        .from('debts')
-        .select('*')
-        .then(({ data }) => {
-          if (!data) return
-
-          data.filter(debt => !isPaidOff(debt)).forEach(debt => {
-            const days = daysUntil(debt.due_date)
-            const amount = formatGBP(instalmentAmount(debt))
-
-            if (days === 0) {
-              new Notification('Payment due today', {
-                body: `Your ${debt.provider} payment of ${amount} is due today — don't miss it`,
-                icon: '/icon-192.png',
-                badge: '/icon-192.png',
-              })
-            } else if (days > 0 && days <= 3) {
-              new Notification('Payment due soon', {
-                body: `Your ${debt.provider} payment of ${amount} is due in ${days} day${days === 1 ? '' : 's'}`,
-                icon: '/icon-192.png',
-                badge: '/icon-192.png',
-              })
-            }
-          })
-        })
-    }
-  }, [session])
+    if (signedInId) syncReminders().catch(() => {})
+  }, [signedInId])
 
   const fetchDebts = async () => {
     setLoading(true)
@@ -184,9 +148,7 @@ function App() {
         if (change.eventType !== 'INSERT' || row?.status !== 'pending' || localPendingIds.current.has(row.id)) return
         const text = `New ${row.provider || 'BNPL'} purchase detected`
         showPaymentToast({ message: text })
-        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
-          new Notification(text, { body: row.item || 'Open DERA to add it', icon: '/icon-192.png' })
-        }
+        if (document.hidden) showLocalNotification(text, row.item || 'Open DERA to add it')
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
