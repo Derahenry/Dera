@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { supabase } from './supabase'
+import { isDemo, realAuth, setDemoMode, supabase } from './supabase'
+import { DEMO_SESSION, resetDemoData } from './demo'
 import Auth from './Auth'
 import ResetPassword from './ResetPassword'
 import AddDebt from './AddDebt'
@@ -29,8 +30,13 @@ function getGreeting() {
   return 'Good evening,'
 }
 
+// dera-alpha.vercel.app/?demo opens straight into the demo (handy for sharing).
+const startsInDemo = new URLSearchParams(window.location.search).has('demo')
+if (startsInDemo) setDemoMode(true)
+
 function App() {
-  const [session, setSession] = useState(null)
+  const [demo, setDemo] = useState(startsInDemo)
+  const [session, setSession] = useState(startsInDemo ? DEMO_SESSION : null)
   // True after opening a password-reset link from email; shows the "Set a new password" screen.
   const [recovering, setRecovering] = useState(() => window.location.hash.includes('type=recovery'))
   const [debts, setDebts] = useState([])
@@ -84,10 +90,12 @@ function App() {
   }, [theme])
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+    // While the demo is open, real sign-in state is ignored (it's picked up again on exit).
+    realAuth.getSession().then(({ data: { session } }) => {
+      if (!isDemo()) setSession(session)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = realAuth.onAuthStateChange((event, session) => {
+      if (isDemo()) return
       setSession(session)
       if (event === 'PASSWORD_RECOVERY') setRecovering(true)
     })
@@ -98,8 +106,29 @@ function App() {
   // app is closed. On sign-in, keep this device linked to whoever is signed in.
   const signedInId = session?.user?.id
   useEffect(() => {
-    if (signedInId) syncReminders().catch(() => {})
+    if (signedInId && !isDemo()) syncReminders().catch(() => {})
   }, [signedInId])
+
+  // Demo: sample data in memory, nothing saved, no account needed.
+  const startDemo = () => {
+    setDemoMode(true)
+    resetDemoData()
+    setDemo(true)
+    setActiveTab('home')
+    setSession(DEMO_SESSION)
+  }
+
+  const exitDemo = () => {
+    setDemoMode(false)
+    setDemo(false)
+    setDebts([])
+    setPending([])
+    setActiveTab('home')
+    setSession(null)
+    if (window.location.search) window.history.replaceState({}, '', window.location.pathname)
+    // Back to the real account if someone was signed in, otherwise the sign-in screen.
+    realAuth.getSession().then(({ data: { session } }) => setSession(session))
+  }
 
   const fetchDebts = async () => {
     setLoading(true)
@@ -336,9 +365,9 @@ function App() {
     )
   }
 
-  if (!session) return <Auth />
+  if (!session) return <Auth onDemo={startDemo} />
 
-  if (showOnboarding) return <Onboarding onDone={completeOnboarding} />
+  if (showOnboarding && !demo) return <Onboarding onDone={completeOnboarding} />
 
   const firstName = (session?.user?.user_metadata?.full_name || '').trim().split(/\s+/)[0]
 
@@ -346,7 +375,18 @@ function App() {
     <div className="min-h-screen pb-32 app-bg">
 
       {/* Top header */}
-      <header className="max-w-lg mx-auto px-5 pt-12 pb-5 flex items-center justify-between">
+      {demo && (
+        <div className="max-w-lg mx-auto px-4 pt-4">
+          <div className="flex items-center gap-3 bg-inverse text-on-inverse rounded-full pl-4 pr-1.5 py-1.5" role="status">
+            <p className="flex-1 text-xs"><span className="font-semibold">Demo</span> · sample data, nothing is saved</p>
+            <button onClick={exitDemo} className="press text-xs font-semibold px-3 py-1.5 rounded-full bg-on-inverse/15">
+              Exit demo
+            </button>
+          </div>
+        </div>
+      )}
+
+      <header className={`max-w-lg mx-auto px-5 ${demo ? 'pt-6' : 'pt-12'} pb-5 flex items-center justify-between`}>
         <div>
           <p className="text-sm text-ink-3">{getGreeting()}</p>
           <p className="text-2xl font-semibold text-ink tracking-tight">{firstName || 'Welcome'}</p>
@@ -446,7 +486,7 @@ function App() {
         )}
 
         {activeTab === 'settings' && (
-          <Settings session={session} theme={theme} onThemeChange={setTheme} />
+          <Settings session={session} theme={theme} onThemeChange={setTheme} demo={demo} onExitDemo={exitDemo} />
         )}
 
       </main>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy · DERA</title>
+  <meta name="description" content="What DERA stores, why, who processes it, and how to delete it." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;900&display=swap" rel="stylesheet">
+  <style>
+    :root { --canvas:#F4F4F6; --surface:#FFFFFF; --ink:#0B0B0F; --ink-2:#5B5D66; --ink-3:#9A9CA6; --line:rgba(11,11,15,.08); }
+    @media (prefers-color-scheme: dark) {
+      :root { --canvas:#08080A; --surface:#141417; --ink:#F5F5F7; --ink-2:#A3A5AE; --ink-3:#6E707A; --line:rgba(255,255,255,.08); }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); font-family: Inter, system-ui, sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+    header { background: #000; color: #fff; padding: 48px 20px 40px; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .brand { font-weight: 900; letter-spacing: -0.04em; font-size: 22px; color: #fff; text-decoration: none; }
+    h1 { font-size: 34px; line-height: 1.05; font-weight: 900; letter-spacing: -0.02em; margin: 32px 0 8px; }
+    header p { color: rgba(255,255,255,.6); margin: 0; font-size: 15px; }
+    main { padding: 24px 16px 64px; }
+    section { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 20px 22px; margin-bottom: 14px; }
+    h2 { font-size: 17px; margin: 0 0 8px; letter-spacing: -0.01em; }
+    p, li { font-size: 15px; color: var(--ink-2); }
+    ul { padding-left: 20px; margin: 8px 0 0; }
+    li { margin-bottom: 6px; }
+    strong { color: var(--ink); font-weight: 600; }
+    a { color: var(--ink); }
+    .back { display: inline-block; margin-top: 8px; font-weight: 600; font-size: 15px; }
+    .muted { color: var(--ink-3); font-size: 13px; text-align: center; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <a class="brand" href="/">DERA</a>
+      <h1>Privacy</h1>
+      <p>What DERA stores, why, and how to delete it. Last updated 25 November 2026.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>The short version</h2>
+      <ul>
+        <li>DERA stores only what it needs to track your Buy Now Pay Later plans.</li>
+        <li>Only you can see your data. We never sell it or use it for advertising.</li>
+        <li>When you paste an email, only the purchase details are kept, never the email itself.</li>
+        <li>You can ask for your account and everything in it to be deleted at any time.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What we store</h2>
+      <ul>
+        <li><strong>Your account:</strong> email address, name (if you give one) and an encrypted password.</li>
+        <li><strong>Your plans:</strong> the provider, what you bought, amounts, number of payments, payments made, due dates and how often they're due.</li>
+        <li><strong>Detected purchases:</strong> the details read from an email you paste (provider, item, amounts, dates) and whether you added or ignored them.</li>
+        <li><strong>Reminders:</strong> if you turn them on, a technical address for your phone or browser so we can send notifications.</li>
+        <li><strong>AI usage:</strong> a daily count of AI requests, used only to apply the fair-use limit.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Why we use it</h2>
+      <p>To show what you owe and when, send the reminders you ask for, and run the tools you choose to use. The legal basis is providing the service you signed up for. The anonymous comparison in Insights uses totals only, with no names or emails.</p>
+    </section>
+
+    <section>
+      <h2>Who processes it for us</h2>
+      <ul>
+        <li><strong>Supabase:</strong> stores your account and data, in the EU (Ireland).</li>
+        <li><strong>Vercel:</strong> hosts the website.</li>
+        <li><strong>Groq:</strong> runs the AI features. Only the text you send to a tool (a pasted email, or the details for a message to your provider) is processed, to give you an answer. Groq may process it outside the UK.</li>
+        <li><strong>Resend:</strong> sends account emails such as sign-up and password reset.</li>
+        <li><strong>Apple, Google or Mozilla:</strong> deliver reminders to your device, if you turn them on.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>How long we keep it</h2>
+      <p>For as long as you have an account. Deleting your account deletes your plans, detected purchases and reminder settings. Turning reminders off removes your device straight away.</p>
+    </section>
+
+    <section>
+      <h2>Your rights</h2>
+      <p>Under UK data protection law you can ask to see, correct, export or delete your data, or object to how it's used. Contact us at <a href="mailto:derahenry88@gmail.com">derahenry88@gmail.com</a>. If you're unhappy with our answer, you can complain to the Information Commissioner's Office at <a href="https://ico.org.uk" rel="noopener noreferrer">ico.org.uk</a>.</p>
+    </section>
+
+    <section>
+      <h2>Not financial advice</h2>
+      <p>DERA helps you keep track of your payments. It isn't regulated financial advice. For free, confidential debt advice, contact <a href="https://www.stepchange.org/" rel="noopener noreferrer">StepChange</a> on 0800 138 1111.</p>
+    </section>
+
+    <a class="back" href="/">&larr; Back to DERA</a>
+    <p class="muted">DERA is a student project by Chidera Nwokolo.</p>
+  </main>
+</body>
+</html>

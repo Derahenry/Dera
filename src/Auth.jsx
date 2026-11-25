@@ -10,7 +10,7 @@ const COPY = {
   forgot: { title: 'Reset your password.', sub: "Enter your email and we'll send you a link to set a new one.", button: 'Send reset link' },
 }
 
-function Auth() {
+function Auth({ onDemo }) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [password, setPassword] = useState('')
@@ -146,6 +146,26 @@ function Auth() {
           </button>
         </p>
       </form>
+
+      {mode !== 'forgot' && onDemo && (
+        <div className="mt-8">
+          <div className="flex items-center gap-3 text-xs text-ink-3">
+            <span className="flex-1 h-px bg-line" /> or <span className="flex-1 h-px bg-line" />
+          </div>
+          <button
+            type="button"
+            onClick={onDemo}
+            className="press mt-5 w-full py-4 rounded-full bg-surface-2 text-ink text-[15px] font-semibold"
+          >
+            Try the demo
+          </button>
+          <p className="text-center text-xs text-ink-3 mt-2">No sign-up. Sample data, nothing is saved.</p>
+        </div>
+      )}
+
+      <p className="text-center text-xs text-ink-3 mt-8">
+        <a href="/privacy.html" className="underline underline-offset-4">Privacy</a>
+      </p>
     </AuthShell>
   )
 }
