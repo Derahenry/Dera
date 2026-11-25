@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
-import { FREQUENCY_LABELS, formatGBP, validateDebt } from './debtMath'
+import { validateDebt } from './debtMath'
+import DetectedCard from './DetectedCard'
 
 const SAMPLE_EMAIL = `From: noreply@klarna.com
 Subject: Your next payment is due soon
@@ -23,17 +24,18 @@ Questions? Visit klarna.com/uk or reply to this email.
 Thanks,
 The Klarna team`
 
-function EmailParser({ onDebtParsed, onEditParsed }) {
+// Paste an email: the AI reads it, and what it finds joins the Detected list
+// (only the details are kept, never the email). The same card shows here.
+function EmailParser({ onDetected, pending, actions, onDone }) {
   const [emailText, setEmailText] = useState('')
   const [loading, setLoading] = useState(false)
-  const [parsed, setParsed] = useState(null)
+  const [detectedId, setDetectedId] = useState(null)
   const [error, setError] = useState('')
-  const [saving, setSaving] = useState(false)
 
   const parseEmail = async () => {
     if (!emailText.trim()) return
     setLoading(true)
-    setParsed(null)
+    setDetectedId(null)
     setError('')
 
     // The AI call runs in the ai-assist Edge Function, so the Groq key stays on the server.
@@ -43,47 +45,32 @@ function EmailParser({ onDebtParsed, onEditParsed }) {
 
     if (error || !data?.result) {
       setError('Could not read the email. Try copying more of the email text.')
-    } else {
-      // Check the AI's answer before it can be saved.
-      setParsed(validateDebt(data.result))
-    }
-
-    setLoading(false)
-  }
-
-  const handleAddDebt = async () => {
-    if (!parsed || parsed.errors.length > 0) return
-    setSaving(true)
-    setError('')
-    const saveError = await onDebtParsed(parsed.debt)
-    setSaving(false)
-    if (saveError) {
-      setError(saveError)
+      setLoading(false)
       return
     }
+
+    // Tidy the AI's answer (known provider, sensible numbers) before it is saved.
+    const { debt } = validateDebt(data.result)
+    const saved = await onDetected(debt)
+    setLoading(false)
+    if (saved.error) {
+      setError(saved.error)
+      return
+    }
+    setDetectedId(saved.id)
     setEmailText('')
-    setParsed(null)
   }
 
-  const handleEdit = () => {
-    if (!parsed) return
-    onEditParsed(parsed.debt)
-  }
+  const purchase = detectedId ? pending.find(p => p.id === detectedId) : null
 
-  const d = parsed?.debt
-  const fields = d ? [
-    { label: 'Provider', value: d.provider },
-    { label: 'Item', value: d.item || '—' },
-    { label: 'Total', value: Number.isFinite(d.total) ? formatGBP(d.total) : '—' },
-    { label: 'Instalments', value: `${d.paid} of ${d.instalments} paid` },
-    { label: 'How often', value: FREQUENCY_LABELS[d.frequency] },
-    { label: 'Due date', value: d.due_date || '—' },
-  ] : []
+  const add = async () => {
+    if (await actions.onAdd(purchase)) onDone()
+  }
 
   return (
     <div className="flex flex-col gap-5 pb-4">
       <p className="text-sm text-ink-3 leading-relaxed">
-        Paste a BNPL confirmation email and DERA will extract the debt details automatically.
+        Paste a BNPL confirmation email and DERA will pick out the purchase. Only the details are saved, never the email.
       </p>
 
       {/* Email textarea */}
@@ -119,44 +106,18 @@ function EmailParser({ onDebtParsed, onEditParsed }) {
         </div>
       )}
 
-      {/* Parsed result */}
-      {parsed && (
-        <div className="fade-up bg-surface border border-line rounded-3xl p-5 flex flex-col gap-4">
-          <p className="text-sm font-semibold text-ink">Extracted details</p>
-
-          <div className="flex flex-col divide-y divide-line">
-            {fields.map(({ label, value }) => (
-              <div key={label} className="flex justify-between items-center py-2.5 first:pt-0 last:pb-0">
-                <span className="text-sm text-ink-3">{label}</span>
-                <span className="text-sm font-semibold text-ink">{value}</span>
-              </div>
-            ))}
-          </div>
-
-          {parsed.errors.length > 0 && (
-            <div className="bg-danger/10 rounded-2xl p-3">
-              <p className="text-xs font-semibold text-danger mb-1">Please check before saving:</p>
-              <ul className="text-xs text-danger list-disc pl-4">
-                {parsed.errors.map(e => <li key={e}>{e}</li>)}
-              </ul>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              onClick={handleEdit}
-              className="press flex-1 py-3 rounded-full text-sm font-semibold bg-surface-2 text-ink"
-            >
-              Edit first
-            </button>
-            <button
-              onClick={handleAddDebt}
-              disabled={parsed.errors.length > 0 || saving}
-              className="press flex-1 py-3 rounded-full text-sm font-semibold bg-inverse text-on-inverse disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Saving…' : 'Save to my debts'}
-            </button>
-          </div>
+      {/* What was found: the same Detected card that shows on Home */}
+      {purchase && (
+        <div className="flex flex-col gap-2">
+          <DetectedCard
+            purchase={purchase}
+            duplicate={actions.isDuplicate(purchase)}
+            busy={actions.busyId === purchase.id}
+            onAdd={add}
+            onEdit={() => actions.onEdit(purchase)}
+            onIgnore={() => { actions.onIgnore(purchase); setDetectedId(null) }}
+          />
+          <p className="text-xs text-ink-3 px-1">Not now? It waits for you on Home.</p>
         </div>
       )}
     </div>

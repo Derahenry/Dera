@@ -15,8 +15,11 @@ import Settings from './screens/Settings'
 import { BottomNav, Sheet } from './ui'
 import {
   daysUntil, formatGBP, instalmentAmount, isPaidOff, nextDueDate,
-  paidCount, progress,
+  paidCount, progress, validateDebt,
 } from './debtMath'
+import {
+  fetchPending, findDuplicateDebt, matches, savePending, setPendingStatus, toDebtDraft,
+} from './pendingPurchases'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -40,9 +43,14 @@ function App() {
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
   const [deleteError, setDeleteError] = useState('')
-  const [paymentToast, setPaymentToast] = useState(null) // { debt (before), message, error }
+  const [paymentToast, setPaymentToast] = useState(null) // { message, error, onUndo }
   const paymentToastTimer = useRef(null)
   const [payingId, setPayingId] = useState(null)
+  // Purchases DERA detected that wait for Add / Edit / Ignore.
+  const [pending, setPending] = useState([])
+  const [pendingBusyId, setPendingBusyId] = useState(null)
+  // Detections made in this tab, so the live update doesn't announce them twice.
+  const localPendingIds = useRef(new Set())
   // 'system' follows the phone. Only a choice the user makes in Settings is saved
   // (the old 'dera-theme' key was written automatically, so it isn't read).
   const [theme, setThemeState] = useState(() => {
@@ -144,11 +152,45 @@ function App() {
     setLoading(false)
   }
 
+  const showPaymentToast = (toast) => {
+    clearTimeout(paymentToastTimer.current)
+    setPaymentToast(toast)
+    paymentToastTimer.current = setTimeout(() => setPaymentToast(null), 6000)
+  }
+
+  const loadPending = async () => {
+    const { data, error } = await fetchPending()
+    if (!error) setPending(data)
+  }
+
   useEffect(() => {
     // Loading data from Supabase when the user signs in is the job of this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (session) fetchDebts()
+    if (session) { fetchDebts(); loadPending() }
   }, [session])
+
+  // Live updates: a purchase detected elsewhere (another device, or forwarded
+  // email later) appears on Home without a refresh.
+  const userId = session?.user?.id
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`pending-${userId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'pending_purchases', filter: `user_id=eq.${userId}`,
+      }, (change) => {
+        loadPending()
+        const row = change.new
+        if (change.eventType !== 'INSERT' || row?.status !== 'pending' || localPendingIds.current.has(row.id)) return
+        const text = `New ${row.provider || 'BNPL'} purchase detected`
+        showPaymentToast({ message: text })
+        if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+          new Notification(text, { body: row.item || 'Open DERA to add it', icon: '/icon-192.png' })
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
 
   const deleteDebt = async () => {
     setDeleteError('')
@@ -164,12 +206,6 @@ function App() {
   const closeDeleteModal = () => {
     setDeleteError('')
     setConfirmDelete({ show: false, debtId: null, debtName: '' })
-  }
-
-  const showPaymentToast = (toast) => {
-    clearTimeout(paymentToastTimer.current)
-    setPaymentToast(toast)
-    paymentToastTimer.current = setTimeout(() => setPaymentToast(null), 6000)
   }
 
   // Record one instalment as paid and move the due date on to the next one.
@@ -190,18 +226,21 @@ function App() {
     }
     await fetchDebts()
     showPaymentToast({
-      debt,
+      onUndo: () => undoPayment(debt),
       message: finished
         ? `${debt.item} is paid off 🎉`
         : `Payment recorded · ${newPaid}/${debt.instalments} paid`,
     })
   }
 
-  const undoPayment = async () => {
-    const before = paymentToast?.debt
-    if (!before) return
+  const runToastUndo = () => {
+    const undo = paymentToast?.onUndo
     clearTimeout(paymentToastTimer.current)
     setPaymentToast(null)
+    undo?.()
+  }
+
+  const undoPayment = async (before) => {
     const { error } = await supabase
       .from('debts')
       .update({ paid: before.paid, due_date: before.due_date })
@@ -218,17 +257,72 @@ function App() {
     setShowOnboarding(false)
   }
 
-  // Receives a debt already checked by validateDebt in EmailParser. Returns an error message or null.
-  const handleParsedDebt = async (debt) => {
-    const { error } = await supabase.from('debts').insert([{
-      ...debt,
-      status: 'on-track',
-      user_id: session.user.id,
-    }])
-    if (error) return 'Could not save this debt. Please try again.'
-    fetchDebts()
-    setActiveTab('home')
-    return null
+  // The email parser hands over what it read. It joins the Detected list,
+  // unless the same purchase is already waiting there. Returns { id } or { error }.
+  const detectPurchase = async (raw) => {
+    const existing = pending.find(p => matches(p, raw))
+    if (existing) return { id: existing.id }
+    const { data, error } = await savePending(raw, 'email_paste')
+    if (error) return { error: 'Could not save what was found. Please try again.' }
+    localPendingIds.current.add(data.id)
+    setPending(list => [data, ...list.filter(p => p.id !== data.id)])
+    return { id: data.id }
+  }
+
+  // Add a detected purchase straight to the debts. Incomplete ones open the sheet instead.
+  const addPending = async (purchase) => {
+    const { debt, errors } = validateDebt(purchase)
+    if (errors.length > 0) return editPending(purchase)
+    setPendingBusyId(purchase.id)
+    const { data, error } = await supabase
+      .from('debts')
+      .insert({ ...debt, status: 'on-track', user_id: session.user.id })
+      .select('id')
+      .single()
+    if (error) {
+      setPendingBusyId(null)
+      showPaymentToast({ error: 'Could not add this purchase. Please try again.' })
+      return
+    }
+    await setPendingStatus(purchase.id, 'added', data.id)
+    setPendingBusyId(null)
+    setPending(list => list.filter(p => p.id !== purchase.id))
+    await fetchDebts()
+    showPaymentToast({ message: `${debt.item} added to DERA` })
+    return true
+  }
+
+  const editPending = (purchase) => setEditingDebt(toDebtDraft(purchase))
+
+  const ignorePending = async (purchase) => {
+    setPending(list => list.filter(p => p.id !== purchase.id))
+    const { error } = await setPendingStatus(purchase.id, 'ignored')
+    if (error) {
+      loadPending()
+      showPaymentToast({ error: 'Could not ignore this. Please try again.' })
+      return
+    }
+    showPaymentToast({
+      message: 'Purchase ignored',
+      onUndo: async () => {
+        await setPendingStatus(purchase.id, 'pending')
+        loadPending()
+      },
+    })
+  }
+
+  // Called by the add sheet after a debt is saved from a detected purchase.
+  const linkPendingToDebt = async (pendingId, debtId) => {
+    await setPendingStatus(pendingId, 'added', debtId)
+    setPending(list => list.filter(p => p.id !== pendingId))
+  }
+
+  const pendingActions = {
+    busyId: pendingBusyId,
+    onAdd: addPending,
+    onEdit: editPending,
+    onIgnore: ignorePending,
+    isDuplicate: (p) => Boolean(findDuplicateDebt(p, debts)),
   }
 
   const goTo = (tab) => {
@@ -323,6 +417,8 @@ function App() {
             wellbeing={{ score: wellbeingScore, color: wellbeingColor, label: wellbeingLabel }}
             onNavigate={tab => (tab === 'tools' ? openMessage(null) : goTo(tab))}
             onMessage={debt => openMessage(debt.id)}
+            pending={pending}
+            pendingActions={pendingActions}
           />
         )}
 
@@ -375,7 +471,14 @@ function App() {
                 onAddDebt={() => setShowAddDebt(true)}
               />
             )}
-            {toolsTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} onEditParsed={debt => setEditingDebt(debt)} />}
+            {toolsTab === 'email' && (
+              <EmailParser
+                onDetected={detectPurchase}
+                pending={pending}
+                actions={pendingActions}
+                onDone={() => goTo('home')}
+              />
+            )}
             {toolsTab === 'banking' && <OpenBanking />}
           </div>
         )}
@@ -415,8 +518,8 @@ function App() {
             <p className={`flex-1 text-sm ${paymentToast.error ? 'text-danger' : ''}`}>
               {paymentToast.error || paymentToast.message}
             </p>
-            {paymentToast.debt && (
-              <button onClick={undoPayment} className="text-sm font-semibold underline underline-offset-4">
+            {paymentToast.onUndo && (
+              <button onClick={runToastUndo} className="text-sm font-semibold underline underline-offset-4">
                 Undo
               </button>
             )}
@@ -428,6 +531,7 @@ function App() {
       {(showAddDebt || editingDebt) && (
         <AddDebt
           onDebtAdded={fetchDebts}
+          onLinkPending={linkPendingToDebt}
           onClose={() => { setShowAddDebt(false); setEditingDebt(null) }}
           existingDebt={editingDebt}
         />

@@ -12,8 +12,8 @@ function Label({ children, htmlFor }) {
 }
 
 // Add or edit a debt in a slide-up sheet. A debt without an id (e.g. from the
-// email parser's "Edit first") is treated as a new debt with pre-filled values.
-function AddDebt({ onDebtAdded, onClose, existingDebt }) {
+// Detected card's "Edit") is treated as a new debt with pre-filled values.
+function AddDebt({ onDebtAdded, onLinkPending, onClose, existingDebt }) {
   const isEditing = Boolean(existingDebt?.id)
   const [provider, setProvider] = useState(PROVIDERS.includes(existingDebt?.provider) ? existingDebt.provider : 'Klarna')
   const [item, setItem] = useState(existingDebt?.item || '')
@@ -78,13 +78,22 @@ function AddDebt({ onDebtAdded, onClose, existingDebt }) {
     }
 
     let saveError
+    let saved = null
     if (isEditing) {
       ({ error: saveError } = await supabase.from('debts').update(fields).eq('id', existingDebt.id))
     } else {
       const { data: { user } } = await supabase.auth.getUser()
-      ;({ error: saveError } = await supabase.from('debts').insert({ ...fields, user_id: user.id, status: 'on-track' }))
+      ;({ data: saved, error: saveError } = await supabase
+        .from('debts')
+        .insert({ ...fields, user_id: user.id, status: 'on-track' })
+        .select('id')
+        .single())
     }
 
+    if (!saveError && saved && existingDebt?.pendingId) {
+      // Saved from a detected purchase: mark it added so it leaves the Detected list.
+      await onLinkPending?.(existingDebt.pendingId, saved.id)
+    }
     setLoading(false)
     if (saveError) {
       setError("Couldn't save this debt. Check your connection and try again.")
