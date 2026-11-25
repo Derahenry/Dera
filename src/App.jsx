@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 import Auth from './Auth'
 import ResetPassword from './ResetPassword'
 import AddDebt from './AddDebt'
-import LetterWriter from './LetterWriter'
+import MessageProvider from './screens/MessageProvider'
 import EmailParser from './EmailParser'
 import Benchmarking from './Benchmarking'
 import OpenBanking from './OpenBanking'
@@ -38,7 +38,9 @@ function App() {
   const [showAddDebt, setShowAddDebt] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('home')
-  const [toolsTab, setToolsTab] = useState('letter')
+  const [toolsTab, setToolsTab] = useState('message')
+  // Which debt the Message provider screen should start on (set from Home).
+  const [messageDebtId, setMessageDebtId] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState({ show: false, debtId: null, debtName: '' })
   const [editingDebt, setEditingDebt] = useState(null)
   const [fetchError, setFetchError] = useState(null)
@@ -237,6 +239,18 @@ function App() {
     fetchDebts()
     setActiveTab('home')
     return null
+  }
+
+  const goTo = (tab) => {
+    setActiveTab(tab)
+    window.scrollTo(0, 0)
+  }
+
+  // Open Tools > Message provider, optionally starting on a particular debt.
+  const openMessage = (debtId) => {
+    setMessageDebtId(debtId)
+    setToolsTab('message')
+    goTo('tools')
   }
 
   // Active debts still have instalments to pay; paid-off ones are kept for the "Paid off" section.
@@ -461,7 +475,8 @@ function App() {
             onMarkPaid={markPaid}
             payingId={payingId}
             wellbeing={{ score: wellbeingScore, color: wellbeingColor, label: wellbeingLabel }}
-            onNavigate={tab => { setActiveTab(tab); window.scrollTo(0, 0) }}
+            onNavigate={tab => (tab === 'tools' ? openMessage(null) : goTo(tab))}
+            onMessage={debt => openMessage(debt.id)}
           />
         )}
 
@@ -632,19 +647,17 @@ function App() {
 
         {/* ── TOOLS ────────────────────────────────────────────── */}
         {activeTab === 'tools' && (
-          <div className="mt-2">
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Tools</h2>
-
-            {/* Segmented pill switcher */}
-            <div className="p-1 bg-gray-100 dark:bg-slate-700 rounded-[14px] flex mb-5">
-              {[{ id: 'letter', label: 'Letter writer' }, { id: 'email', label: 'Email parser' }, { id: 'banking', label: 'Open Banking' }].map(t => (
+          <div className="pb-4">
+            {/* Pill switcher */}
+            <div className="flex bg-surface-2 rounded-full p-1 mb-6" role="tablist" aria-label="Tools">
+              {[{ id: 'message', label: 'Message' }, { id: 'email', label: 'Email parser' }, { id: 'banking', label: 'Open banking' }].map(t => (
                 <button
                   key={t.id}
+                  role="tab"
+                  aria-selected={toolsTab === t.id}
                   onClick={() => setToolsTab(t.id)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-[10px] transition-all duration-200 ${
-                    toolsTab === t.id
-                      ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm'
-                      : 'text-gray-500 dark:text-slate-400'
+                  className={`flex-1 py-2 text-[13px] font-medium rounded-full whitespace-nowrap transition-colors ${
+                    toolsTab === t.id ? 'bg-surface text-ink shadow-sm' : 'text-ink-3'
                   }`}
                 >
                   {t.label}
@@ -652,7 +665,15 @@ function App() {
               ))}
             </div>
 
-            {toolsTab === 'letter' && <LetterWriter debts={debts} />}
+            {toolsTab === 'message' && (
+              <MessageProvider
+                key={messageDebtId ?? 'none'}
+                debts={activeDebts}
+                userName={session?.user?.user_metadata?.full_name || ''}
+                initialDebtId={messageDebtId}
+                onAddDebt={() => setShowAddDebt(true)}
+              />
+            )}
             {toolsTab === 'email' && <EmailParser onDebtParsed={handleParsedDebt} onEditParsed={debt => setEditingDebt(debt)} />}
             {toolsTab === 'banking' && <OpenBanking />}
           </div>
@@ -755,7 +776,7 @@ function App() {
 
       <BottomNav
         active={activeTab}
-        onNavigate={tab => { setActiveTab(tab); window.scrollTo(0, 0) }}
+        onNavigate={goTo}
         onAdd={() => setShowAddDebt(true)}
       />
 

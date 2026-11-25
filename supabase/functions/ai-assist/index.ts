@@ -38,20 +38,49 @@ function clean(value: unknown, max: number): string {
   return String(value ?? '').trim().slice(0, max)
 }
 
+const REQUESTS: Record<string, string> = {
+  'more-time': 'ask to move the next payment back by about two weeks',
+  'pause': 'ask for a short pause in payments (for example one month) while things settle',
+  'smaller': 'ask to spread the remaining balance over more, smaller payments',
+}
+
+const money = (value: unknown) => {
+  const n = Number(value)
+  return Number.isFinite(n) ? `£${n.toFixed(2)}` : null
+}
+
+// Older versions of the app send no `request`/`format`; they get the original
+// behaviour (a formal letter asking for a 14-day extension).
 function letterPrompt(input: Record<string, unknown>): string {
   const provider = clean(input.provider, 40)
   const recipient = PROVIDERS[provider] || provider || 'the creditor'
-  const total = Number(input.total)
-  return `You are a professional debt advisor in the UK. Write a formal, polite hardship letter from a customer to ${recipient}.
+  const request = REQUESTS[clean(input.request, 20)] ?? REQUESTS['more-time']
+  const format = clean(input.format, 10) === 'chat' ? 'chat' : 'email'
+  const name = clean(input.name, 80)
+  const nextAmount = money(input.next_amount)
+  const remaining = money(input.remaining)
 
-The customer details:
-- Provider: ${provider}
-- Item/purchase: ${clean(input.item, 120)}
-- Amount owed: £${Number.isFinite(total) ? total.toFixed(2) : '0.00'}
-- Due date: ${clean(input.due_date, 20)}
-- Reason for difficulty: ${clean(input.reason, 600)}
+  const details = [
+    `- Provider: ${provider}`,
+    `- Item/purchase: ${clean(input.item, 120)}`,
+    `- Original total: ${money(input.total) ?? 'unknown'}`,
+    remaining ? `- Still to pay: ${remaining}` : null,
+    nextAmount ? `- Next payment: ${nextAmount} due ${clean(input.due_date, 20)}` : `- Next payment due: ${clean(input.due_date, 20)}`,
+    `- What's happening: ${clean(input.reason, 600)}`,
+  ].filter(Boolean).join('\n')
 
-Write a short, professional letter requesting a payment extension of 14 days. The tone should be polite, honest, and respectful. Do not include a subject line. Start with "Dear ${recipient}," and end with "Yours sincerely," followed by a blank line for their name. Keep it under 200 words.`
+  const shape = format === 'chat'
+    ? `Write a short message to paste into ${provider}'s in-app support chat. Friendly, honest and clear, under 100 words. No greeting like "Dear", no sign-off, no subject line.`
+    : `Write a short, polite email to ${recipient}. Start with "Dear ${recipient}," and end with "Yours sincerely," then ${name ? `"${name}"` : 'a blank line for their name'} on the next line. Under 180 words. No subject line.`
+
+  return `You are helping a UK customer who is struggling with a Buy Now Pay Later payment contact their provider.
+
+The customer's details:
+${details}
+
+${shape}
+In the message, briefly explain the situation in the customer's own voice, ${request}, and ask the provider to confirm what support they can offer.
+Rules: do not invent account or reference numbers, dates or amounts that are not given above. Do not use placeholders in square brackets. Do not mention this app. Write in British English.`
 }
 
 function emailPrompt(input: Record<string, unknown>): string {
