@@ -1,12 +1,107 @@
 @import "tailwindcss";
 @variant dark (&:where(.dark, .dark *));
 
-.app-bg {
-  background: linear-gradient(160deg, #f0efff 0%, #f8f7ff 40%, #ffffff 100%);
+/* ── DERA design tokens (monochrome premium) ─────────────────────────────
+   One accent colour; red only for overdue, green only for paid.
+   Light values here, dark values under .dark. Tailwind utilities like
+   bg-canvas / text-ink / border-line read these. */
+:root {
+  --canvas: #F4F4F6;
+  --surface: #FFFFFF;
+  --surface-2: #EDEDF0;
+  --line: rgba(11, 11, 15, 0.07);
+  --ink: #0B0B0F;
+  --ink-2: #5B5D66;
+  --ink-3: #9A9CA6;
+  --inverse: #0B0B0F;
+  --on-inverse: #FFFFFF;
+  --accent: #6C5CE7;
+  --accent-soft: #ECEAFD;
+  --danger: #E5484D;
+  --success: #1F9D61;
+  --success-soft: #E3F5EC;
+  --card-1: #1A1A1F;
+  --card-2: #0B0B0F;
+  color-scheme: light;
 }
 
-.dark .app-bg {
-  background: #0F172A;
+.dark {
+  --canvas: #08080A;
+  --surface: #141417;
+  --surface-2: #1D1D22;
+  --line: rgba(255, 255, 255, 0.07);
+  --ink: #F5F5F7;
+  --ink-2: #A3A5AE;
+  --ink-3: #6C6E78;
+  --inverse: #F5F5F7;
+  --on-inverse: #0B0B0F;
+  --accent: #8B7CFF;
+  --accent-soft: #221E3D;
+  --danger: #FF6369;
+  --success: #3DD68C;
+  --success-soft: #11291E;
+  --card-1: #24242B;
+  --card-2: #121216;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-inverse: var(--inverse);
+  --color-on-inverse: var(--on-inverse);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--canvas);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Amounts line up neatly */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* The glassy DERA card at the top of Home: dark in both modes */
+.dera-card {
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(160deg, var(--card-1) 0%, var(--card-2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.45);
+}
+
+/* Floating pill bottom bar */
+.nav-pill {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Bottom sheets */
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.sheet-backdrop { animation: fade-in 0.2s ease-out; }
+.sheet-panel { animation: sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (prefers-reduced-motion: reduce) {
+  .sheet-backdrop, .sheet-panel { animation: none; }
+}
+
+.app-bg {
+  background: var(--canvas);
 }
 
 .nav-bg {
@@ -48,3 +143,7 @@
   width: 0%;
   animation: splash-fill 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
+
+/* Provider badge colours switch with the theme */
+.provider-badge { background: var(--pb-bg); color: var(--pb-fg); }
+.dark .provider-badge { background: var(--pb-dark-bg); color: var(--pb-dark-fg); }
