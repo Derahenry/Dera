@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { ActionButton, Icon, Money, ProviderBadge, Sheet } from '../ui'
 import { useCountUp } from '../hooks'
+import DetectedCard from '../DetectedCard'
 import {
   daysUntil, dueLabel, formatGBP, formatLongDate, formatShortDate, instalmentAmount,
   paidCount, payoffDate, progress, remaining,
@@ -41,6 +42,7 @@ function DebtRow({ debt, onOpen, index = 0 }) {
 function Home({
   activeDebts, paidOffDebts, loading, fetchError, onRetry,
   onAdd, onEdit, onDelete, onMarkPaid, payingId, wellbeing, onNavigate, onMessage,
+  pending = [], pendingActions,
 }) {
   const [openDebtId, setOpenDebtId] = useState(null)
   const [payPickerOpen, setPayPickerOpen] = useState(false)
@@ -128,6 +130,31 @@ function Home({
           </div>
           <Icon name="chevron" size={18} className="text-ink-3" />
         </button>
+      )}
+
+      {/* Detected purchases waiting for a decision */}
+      {pending.length > 0 && pendingActions && (
+        <section aria-label="Detected purchases">
+          <div className="flex items-baseline justify-between px-1 mb-2">
+            <h2 className="text-lg font-semibold text-ink">
+              Detected <span className="text-ink-3 font-normal">{pending.length}</span>
+            </h2>
+          </div>
+          <div className="flex flex-col gap-3">
+            {pending.map((p, i) => (
+              <DetectedCard
+                key={p.id}
+                index={i}
+                purchase={p}
+                duplicate={pendingActions.isDuplicate(p)}
+                busy={pendingActions.busyId === p.id}
+                onAdd={() => pendingActions.onAdd(p)}
+                onEdit={() => pendingActions.onEdit(p)}
+                onIgnore={() => pendingActions.onIgnore(p)}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Upcoming */}
