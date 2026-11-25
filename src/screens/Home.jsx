@@ -39,7 +39,7 @@ function DebtRow({ debt, onOpen }) {
 
 function Home({
   activeDebts, paidOffDebts, loading, fetchError, onRetry,
-  onAdd, onEdit, onDelete, onMarkPaid, payingId, wellbeing, onNavigate,
+  onAdd, onEdit, onDelete, onMarkPaid, payingId, wellbeing, onNavigate, onMessage,
 }) {
   const [openDebtId, setOpenDebtId] = useState(null)
   const [payPickerOpen, setPayPickerOpen] = useState(false)
@@ -251,6 +251,12 @@ function Home({
               className="w-full py-3.5 rounded-full bg-inverse text-on-inverse text-[15px] font-semibold disabled:opacity-50"
             >
               {payingId === openDebt.id ? 'Saving…' : `Mark payment ${paidCount(openDebt) + 1} of ${openDebt.instalments} made`}
+            </button>
+            <button
+              onClick={() => { setOpenDebtId(null); onMessage(openDebt) }}
+              className="w-full py-3 rounded-full bg-surface-2 text-ink text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <Icon name="message" size={16} /> Struggling? Message {openDebt.provider === 'PayPal Pay in 3' ? 'PayPal' : openDebt.provider}
             </button>
             <div className="flex gap-3">
               <button

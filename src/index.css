@@ -147,3 +147,7 @@ body {
 /* Provider badge colours switch with the theme */
 .provider-badge { background: var(--pb-bg); color: var(--pb-fg); }
 .dark .provider-badge { background: var(--pb-dark-bg); color: var(--pb-dark-fg); }
+
+/* Horizontal chip rows scroll without a visible scrollbar */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
