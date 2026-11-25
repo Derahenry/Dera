@@ -1,11 +1,11 @@
 {
   "name": "DERA",
   "short_name": "DERA",
-  "description": "Your BNPL debt, simplified",
+  "description": "Your BNPL, sorted",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f0efff",
-  "theme_color": "#4F46E5",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "orientation": "portrait",
   "icons": [
     {

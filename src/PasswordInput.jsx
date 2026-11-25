@@ -16,7 +16,7 @@ function PasswordInput({ className = '', ...props }) {
         onClick={() => setVisible(v => !v)}
         aria-label={visible ? 'Hide password' : 'Show password'}
         aria-pressed={visible}
-        className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-gray-400 hover:text-gray-600"
+        className="absolute inset-y-0 right-0 w-11 flex items-center justify-center text-ink-3 hover:text-ink"
       >
         {visible ? (
           <svg width="18" height="18" fill="none" viewBox="0 0 24 24" aria-hidden="true">
