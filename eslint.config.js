@@ -19,7 +19,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['vite.config.js', 'public/generate-icons.js'],
+    files: ['vite.config.js', 'scripts/**/*.js'],
     languageOptions: { globals: globals.node },
   },
   {

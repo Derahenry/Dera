@@ -22,4 +22,10 @@ drop policy if exists "Anyone can read benchmarks" on public.benchmarks;
 
 -- rls_auto_enable is an event-trigger function; it never needs to be callable over the API.
 -- Event triggers still fire without EXECUTE grants.
-revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+-- (Guarded so a fresh project without this function can still run the file.)
+do $$
+begin
+  if to_regprocedure('public.rls_auto_enable()') is not null then
+    revoke execute on function public.rls_auto_enable() from public, anon, authenticated;
+  end if;
+end $$;
