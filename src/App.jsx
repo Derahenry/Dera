@@ -5,25 +5,17 @@ import ResetPassword from './ResetPassword'
 import AddDebt from './AddDebt'
 import MessageProvider from './screens/MessageProvider'
 import EmailParser from './EmailParser'
-import Benchmarking from './Benchmarking'
 import OpenBanking from './OpenBanking'
-import PaymentPlan from './PaymentPlan'
 import Home from './screens/Home'
+import Calendar from './screens/Calendar'
+import Insights from './screens/Insights'
 import Splash from './screens/Splash'
 import Onboarding from './screens/Onboarding'
 import { BottomNav } from './ui'
 import {
-  daysUntil, dueLabel, formatGBP, instalmentAmount, isPaidOff, nextDueDate,
-  paidCount, parseDate, progress,
+  daysUntil, formatGBP, instalmentAmount, isPaidOff, nextDueDate,
+  paidCount, progress,
 } from './debtMath'
-
-const providerColors = {
-  'Klarna': '#FF7DA8',
-  'Clearpay': '#1EC9A0',
-  'PayPal Pay in 3': '#1E73E8',
-  'Zilch': '#7C5CFC',
-  'Other': '#9AA0B5',
-}
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -261,7 +253,7 @@ function App() {
     ? Math.round(debts.reduce((s, d) => s + progress(d), 0) / debts.length)
     : 100
   const wellbeingScore = Math.round((timelinessScore + debtLoadScore + repaymentScore) / 3)
-  const wellbeingColor = wellbeingScore >= 70 ? '#16A34A' : wellbeingScore >= 40 ? '#D97706' : '#DC2626'
+  const wellbeingColor = wellbeingScore >= 70 ? 'var(--success)' : wellbeingScore >= 40 ? 'var(--ink)' : 'var(--danger)'
   const wellbeingLabel = wellbeingScore >= 70 ? 'Looking good' : wellbeingScore >= 40 ? 'Doing okay' : 'Needs attention'
 
   // Risk banner
@@ -331,169 +323,24 @@ function App() {
           />
         )}
 
-        {/* ── CALENDAR ─────────────────────────────────────────── */}
         {activeTab === 'calendar' && (
-          <div className="mt-2">
-            <div className="mb-5">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Payments</h2>
-              <p className="text-sm text-gray-400 dark:text-slate-500 mt-0.5">
-                Next {activeDebts.length} payment{activeDebts.length !== 1 ? 's' : ''} · {formatGBP(activeDebts.reduce((s, d) => s + instalmentAmount(d), 0))}
-              </p>
-            </div>
-
-            {loading ? (
-              <div className="flex justify-center py-12">
-                <div className="w-6 h-6 rounded-full border-2 border-gray-200 dark:border-slate-600 border-t-indigo-600 animate-spin" />
-              </div>
-            ) : activeDebts.length === 0 ? (
-              <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 text-center border border-gray-100 dark:border-slate-700">
-                <p className="text-gray-400 dark:text-slate-500 text-sm">No upcoming payments</p>
-                <p className="text-gray-300 dark:text-slate-600 text-xs mt-1">Add a debt to see your schedule</p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {[...activeDebts].sort((a, b) => daysUntil(a.due_date) - daysUntil(b.due_date)).map(debt => {
-                  const color = providerColors[debt.provider] || '#9AA0B5'
-                  const days = daysUntil(debt.due_date)
-                  const urgency = days < 0 ? 'overdue' : days <= 3 ? 'due-soon' : days <= 14 ? 'upcoming' : 'on-track'
-
-                  const dateBlockColors = {
-                    'overdue':  { bg: '#FEE2E2', text: '#DC2626' },
-                    'due-soon': { bg: '#FEE2E2', text: '#DC2626' },
-                    'upcoming': { bg: '#FEF3C7', text: '#D97706' },
-                    'on-track': { bg: '#DCFCE7', text: '#16A34A' },
-                  }[urgency]
-
-                  const darkDateBlockColors = {
-                    'overdue':  'bg-red-900/30 text-red-400',
-                    'due-soon': 'bg-red-900/30 text-red-400',
-                    'upcoming': 'bg-amber-900/30 text-amber-400',
-                    'on-track': 'bg-green-900/30 text-green-400',
-                  }[urgency]
-
-                  const dueText = dueLabel(days)
-
-                  const dueLabelColor = days <= 0 ? '#EF4444' : days <= 3 ? '#EF4444' : days <= 14 ? '#F59E0B' : '#9AA0B5'
-
-                  const due = parseDate(debt.due_date)
-                  const month = due.toLocaleString('en-GB', { month: 'short' }).toUpperCase()
-                  const day = due.getDate()
-
-                  return (
-                    <div key={debt.id} className="flex gap-3 items-stretch">
-                      {/* Date block */}
-                      <div
-                        className={`w-[54px] flex-shrink-0 rounded-2xl flex flex-col items-center justify-center dark:hidden`}
-                        style={{ backgroundColor: dateBlockColors.bg }}
-                      >
-                        <span className="text-[10px] font-bold tracking-widest" style={{ color: dateBlockColors.text }}>{month}</span>
-                        <span className="text-2xl font-bold leading-tight" style={{ color: dateBlockColors.text }}>{day}</span>
-                      </div>
-                      <div className={`w-[54px] flex-shrink-0 rounded-2xl flex-col items-center justify-center hidden dark:flex ${darkDateBlockColors}`}>
-                        <span className="text-[10px] font-bold tracking-widest">{month}</span>
-                        <span className="text-2xl font-bold leading-tight">{day}</span>
-                      </div>
-
-                      {/* Payment card */}
-                      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm px-4 py-3 flex flex-col justify-between">
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{debt.provider}</p>
-                          </div>
-                          <p className="text-sm font-bold text-gray-900 dark:text-white">{formatGBP(instalmentAmount(debt))}</p>
-                        </div>
-                        <p className="text-xs text-gray-400 dark:text-slate-500 pl-4 mb-2 truncate">{debt.item} · payment {paidCount(debt) + 1} of {debt.instalments}</p>
-                        <p className="text-xs font-semibold pl-4" style={{ color: dueLabelColor }}>{dueText}</p>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
+          <Calendar debts={activeDebts} loading={loading} onAdd={() => setShowAddDebt(true)} />
         )}
 
-        {/* ── INSIGHTS ─────────────────────────────────────────── */}
         {activeTab === 'insights' && (
-          <div className="mt-2 flex flex-col gap-4 pb-2">
-
-            {/* Risk alert banner */}
-            <div className={`rounded-2xl p-4 flex items-center gap-4 ${atRiskDebts.length > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-base font-bold ${atRiskDebts.length > 0 ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400' : 'bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400'}`}>
-                {atRiskDebts.length > 0 ? '!' : '✓'}
-              </div>
-              <div>
-                <p className={`text-sm font-bold ${atRiskDebts.length > 0 ? 'text-red-800 dark:text-red-300' : 'text-green-800 dark:text-green-300'}`}>
-                  {atRiskDebts.length > 0
-                    ? `${atRiskDebts.length} payment${atRiskDebts.length > 1 ? 's' : ''} need${atRiskDebts.length === 1 ? 's' : ''} attention`
-                    : "You're on track"}
-                </p>
-                <p className={`text-xs mt-0.5 ${atRiskDebts.length > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                  {atRiskDebts.length > 0
-                    ? (() => { const d = atRiskDebts[0]; const dl = d.days < 0 ? `${Math.abs(d.days)}d overdue` : d.days === 0 ? 'due today' : `${d.days} day${d.days === 1 ? '' : 's'} left`; return `${d.provider} — ${d.item}: ${dl}` })()
-                    : 'No payments due in the next 3 days.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Wellbeing score ring */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-6 flex flex-col items-center">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-5">Wellbeing score</p>
-              <div className="relative" style={{ width: 160, height: 160 }}>
-                <svg width="160" height="160" viewBox="0 0 160 160">
-                  <circle cx="80" cy="80" r="70" fill="none" className="score-track" strokeWidth="10" />
-                  <circle
-                    cx="80" cy="80" r="70"
-                    fill="none"
-                    stroke={wellbeingColor}
-                    strokeWidth="10"
-                    strokeLinecap="round"
-                    strokeDasharray="440"
-                    className="score-ring-animate"
-                    style={{ '--score-dashoffset': 440 * (1 - wellbeingScore / 100) }}
-                    transform="rotate(-90 80 80)"
-                  />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-3xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>{wellbeingScore}</span>
-                  <span className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">out of 100</span>
-                </div>
-              </div>
-              <p className="text-sm font-semibold mt-4" style={{ color: wellbeingColor }}>{wellbeingLabel}</p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 text-center mt-1.5 max-w-[260px] leading-relaxed">
-                Based on payment timing, debt load and repayment progress.
-              </p>
-            </div>
-
-            {/* Factor breakdown */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 shadow-sm p-5">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white mb-4">Score breakdown</p>
-              {[
-                { label: 'Payment timeliness', score: timelinessScore },
-                { label: 'Debt load', score: debtLoadScore },
-                { label: 'Repayment progress', score: repaymentScore },
-              ].map(({ label, score }) => {
-                const fc = score >= 70 ? '#16A34A' : score >= 40 ? '#D97706' : '#DC2626'
-                return (
-                  <div key={label} className="mb-4 last:mb-0">
-                    <div className="flex justify-between items-center mb-1.5">
-                      <p className="text-xs text-gray-600 dark:text-slate-400">{label}</p>
-                      <p className="text-xs font-bold" style={{ color: fc }}>{score}</p>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                      <div className="h-full rounded-full transition-all" style={{ width: `${score}%`, backgroundColor: fc }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-
-            <PaymentPlan debts={activeDebts} providerColors={providerColors} />
-
-            <Benchmarking debts={debts} />
-
-          </div>
+          <Insights
+            activeDebts={activeDebts}
+            allDebts={debts}
+            wellbeing={{
+              score: wellbeingScore,
+              label: wellbeingLabel,
+              timeliness: timelinessScore,
+              load: debtLoadScore,
+              progress: repaymentScore,
+            }}
+            atRisk={atRiskDebts}
+            onAdd={() => setShowAddDebt(true)}
+          />
         )}
 
         {/* ── TOOLS ────────────────────────────────────────────── */}
