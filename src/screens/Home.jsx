@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ActionButton, Icon, Money, ProviderBadge, Sheet } from '../ui'
+import { useCountUp } from '../hooks'
 import {
   daysUntil, dueLabel, formatGBP, formatLongDate, formatShortDate, instalmentAmount,
   paidCount, payoffDate, progress, remaining,
@@ -20,10 +21,10 @@ function friendlyDue(debt) {
 }
 
 // One debt in the list: badge, item, provider and progress, next amount and when.
-function DebtRow({ debt, onOpen }) {
+function DebtRow({ debt, onOpen, index = 0 }) {
   const days = daysUntil(debt.due_date)
   return (
-    <button onClick={() => onOpen(debt)} className="w-full flex items-center gap-3 py-3 text-left active:opacity-70">
+    <button onClick={() => onOpen(debt)} className="fade-up w-full flex items-center gap-3 py-3 text-left active:opacity-70" style={{ animationDelay: `${index * 45}ms` }}>
       <ProviderBadge provider={debt.provider} />
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-medium text-ink truncate">{debt.item}</p>
@@ -52,6 +53,7 @@ function Home({
     .reduce((s, d) => s + instalmentAmount(d), 0)
   const overdue = activeDebts.filter(d => daysUntil(d.due_date) < 0).length
   const allClear = activeDebts.map(payoffDate).filter(Boolean).sort().pop()
+  const shownLeft = useCountUp(totalLeft)
 
   // Always read the latest copy so the sheet updates after a payment.
   const openDebt = openDebtId ? activeDebts.find(d => d.id === openDebtId) || null : null
@@ -78,9 +80,9 @@ function Home({
 
         <p className="text-sm text-white/55 mt-7">Left to pay</p>
         {loading ? (
-          <div className="h-12 w-40 rounded-xl bg-white/10 animate-pulse mt-1" />
+          <div className="h-12 w-40 rounded-xl bg-white/10 animate-pulse mt-1" aria-label="Loading" />
         ) : (
-          <Money amount={totalLeft} className="block text-[44px] leading-tight font-semibold tracking-tight" penceClassName="text-white/45" />
+          <Money amount={shownLeft} className="block text-[48px] leading-tight font-bold tracking-tight" penceClassName="text-white/45" />
         )}
 
         <div className="flex gap-2 mt-5 flex-wrap">
@@ -141,8 +143,8 @@ function Home({
           <div className="bg-surface border border-line rounded-3xl px-5 py-2">
             {[0, 1, 2].map(i => (
               <div key={i} className="flex items-center gap-3 py-3">
-                <div className="w-10 h-10 rounded-full bg-surface-2 animate-pulse" />
-                <div className="flex-1 h-4 rounded bg-surface-2 animate-pulse" />
+                <div className="w-10 h-10 rounded-full shimmer" />
+                <div className="flex-1 h-4 rounded shimmer" />
               </div>
             ))}
           </div>
@@ -171,7 +173,7 @@ function Home({
           </div>
         ) : (
           <div className="bg-surface border border-line rounded-3xl px-5 py-1 divide-y divide-line">
-            {sorted.map(debt => <DebtRow key={debt.id} debt={debt} onOpen={d => setOpenDebtId(d.id)} />)}
+            {sorted.map((debt, i) => <DebtRow key={debt.id} debt={debt} index={i} onOpen={d => setOpenDebtId(d.id)} />)}
           </div>
         )}
       </section>
@@ -193,7 +195,7 @@ function Home({
             <div className="bg-surface border border-line rounded-3xl px-5 py-1 divide-y divide-line">
               {paidOffDebts.map(debt => (
                 <div key={debt.id} className="flex items-center gap-3 py-3">
-                  <div className="w-10 h-10 rounded-full bg-success-soft text-success flex items-center justify-center flex-shrink-0">
+                  <div className="check-pop w-10 h-10 rounded-full bg-success-soft text-success flex items-center justify-center flex-shrink-0">
                     <Icon name="check" size={18} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -248,7 +250,7 @@ function Home({
             <button
               onClick={() => onMarkPaid(openDebt)}
               disabled={payingId !== null}
-              className="w-full py-3.5 rounded-full bg-inverse text-on-inverse text-[15px] font-semibold disabled:opacity-50"
+              className="press w-full py-3.5 rounded-full bg-inverse text-on-inverse text-[15px] font-semibold disabled:opacity-50"
             >
               {payingId === openDebt.id ? 'Saving…' : `Mark payment ${paidCount(openDebt) + 1} of ${openDebt.instalments} made`}
             </button>

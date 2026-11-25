@@ -15,8 +15,8 @@
   --ink-3: #9A9CA6;
   --inverse: #0B0B0F;
   --on-inverse: #FFFFFF;
-  --accent: #6C5CE7;
-  --accent-soft: #ECEAFD;
+  --accent: #0B0B0F;
+  --accent-soft: #EDEDF0;
   --danger: #E5484D;
   --success: #1F9D61;
   --success-soft: #E3F5EC;
@@ -35,8 +35,8 @@
   --ink-3: #6C6E78;
   --inverse: #F5F5F7;
   --on-inverse: #0B0B0F;
-  --accent: #8B7CFF;
-  --accent-soft: #221E3D;
+  --accent: #F5F5F7;
+  --accent-soft: #26262C;
   --danger: #FF6369;
   --success: #3DD68C;
   --success-soft: #11291E;
@@ -104,25 +104,8 @@ body {
   background: var(--canvas);
 }
 
-.nav-bg {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.dark .nav-bg {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
 /* Wellbeing ring */
-.score-track { stroke: #F3F4F6; }
-.dark .score-track { stroke: #334155; }
+.score-track { stroke: var(--surface-2); }
 
 @keyframes score-ring-draw {
   from { stroke-dashoffset: 440; }
@@ -134,15 +117,6 @@ body {
   animation: score-ring-draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes splash-fill {
-  from { width: 0%; }
-  to   { width: 100%; }
-}
-
-.splash-bar {
-  width: 0%;
-  animation: splash-fill 2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
 
 /* Provider badge colours switch with the theme */
 .provider-badge { background: var(--pb-bg); color: var(--pb-fg); }
@@ -151,3 +125,36 @@ body {
 /* Horizontal chip rows scroll without a visible scrollbar */
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Motion ──────────────────────────────────────────────────────────────
+   Small, quick animations that make DERA feel like a native app.
+   Everything is switched off for people who prefer reduced motion. */
+@keyframes rise-in { from { opacity: 0; transform: translateY(60%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes line-sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes fade-up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes splash-out { to { opacity: 0; transform: scale(1.04); } }
+@keyframes shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes check-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.15); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes story-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+.rise-in { animation: rise-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.line-sweep { transform-origin: left; animation: line-sweep 0.5s cubic-bezier(0.6, 0, 0.2, 1) both; }
+.fade-up { animation: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.splash-out { animation: splash-out 0.35s ease-in forwards; }
+.screen-in { animation: fade-up 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.check-pop { animation: check-pop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.story-fill { transform-origin: left; animation: story-fill 5s linear both; }
+.shimmer {
+  background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface) 50%, var(--surface-2) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.press { transition: transform 0.12s ease; }
+.press:active { transform: scale(0.97); }
+
+@media (prefers-reduced-motion: reduce) {
+  .rise-in, .line-sweep, .fade-up, .screen-in, .check-pop, .shimmer { animation: none; }
+  .splash-out { animation-duration: 0.01s; }
+  .story-fill { animation: none; transform: scaleX(1); }
+  .press:active { transform: none; }
+}

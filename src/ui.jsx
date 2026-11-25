@@ -80,6 +80,24 @@ export function ActionButton({ icon, label, onClick, primary = false }) {
   )
 }
 
+// ── Sign-in layout: black hero with the wordmark, form on a sheet below ─────
+export function AuthShell({ title, sub, children }) {
+  return (
+    <div className="min-h-screen bg-black flex flex-col">
+      <div className="px-6 pt-14 pb-10 text-white max-w-lg w-full mx-auto">
+        <p className="text-2xl font-black tracking-[-0.04em] fade-up">DERA</p>
+        <h1 className="mt-10 text-[34px] leading-[1.05] font-black tracking-tight fade-up" style={{ animationDelay: '60ms' }}>
+          {title}
+        </h1>
+        {sub && <p className="mt-3 text-[15px] text-white/60 fade-up" style={{ animationDelay: '120ms' }}>{sub}</p>}
+      </div>
+      <div className="flex-1 bg-surface rounded-t-[32px] sheet-panel">
+        <div className="max-w-lg mx-auto px-6 pt-8 pb-10">{children}</div>
+      </div>
+    </div>
+  )
+}
+
 // ── Bottom sheet: slides up, closes on backdrop tap or Escape ───────────────
 export function Sheet({ open, onClose, title, children }) {
   useEffect(() => {

@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { supabase } from './supabase'
 import PasswordInput from './PasswordInput'
-
-const inputClass = 'w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:border-purple-400'
+import { AuthShell } from './ui'
+import { fieldClass } from './styles'
 
 const COPY = {
-  login: { title: 'Welcome back', sub: 'Log in to see your BNPL overview', button: 'Log in' },
-  signup: { title: 'Create your account', sub: 'Start tracking your BNPL debt in one place', button: 'Sign up' },
-  forgot: { title: 'Reset your password', sub: "Enter your email and we'll send you a link to set a new password", button: 'Send reset link' },
+  login: { title: 'Welcome back.', sub: "Log in to see what you owe and what's next.", button: 'Log in' },
+  signup: { title: 'Get on top of it.', sub: 'Create your account and track every BNPL plan in one place.', button: 'Create account' },
+  forgot: { title: 'Reset your password.', sub: "Enter your email and we'll send you a link to set a new one.", button: 'Send reset link' },
 }
 
 function Auth() {
@@ -67,104 +67,86 @@ function Auth() {
   const copy = COPY[mode]
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-6">
-      <div className="w-full max-w-sm">
-
-        {/* Logo */}
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          <div className="w-2 h-2 rounded-full bg-purple-600"></div>
-          <span className="font-medium text-gray-900 text-lg">DERA</span>
+    <AuthShell title={copy.title} sub={copy.sub}>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <div>
+          <label htmlFor="auth-email" className="text-xs font-medium text-ink-3 mb-1.5 block">Email</label>
+          <input
+            id="auth-email"
+            type="email"
+            required
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="amara@example.com"
+            className={fieldClass}
+          />
         </div>
 
-        {/* Card */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h1 className="text-xl font-medium text-gray-900 mb-1">{copy.title}</h1>
-          <p className="text-sm text-gray-400 mb-6">{copy.sub}</p>
-
-          {/* Email */}
-          <div className="mb-4">
-            <label className="text-xs text-gray-400 mb-1 block">Email</label>
+        {mode === 'signup' && (
+          <div>
+            <label htmlFor="auth-name" className="text-xs font-medium text-ink-3 mb-1.5 block">Full name</label>
             <input
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="amara@example.com"
-              className={inputClass}
+              id="auth-name"
+              type="text"
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Amara Johnson"
+              className={fieldClass}
             />
           </div>
+        )}
 
-          {/* Full Name */}
-          {mode === 'signup' && (
-            <div className="mb-4">
-              <label className="text-xs text-gray-400 mb-1 block">Full name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Amara Johnson"
-                className={inputClass}
-              />
+        {mode !== 'forgot' && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label htmlFor="auth-password" className="text-xs font-medium text-ink-3 block">Password</label>
+              {mode === 'login' && (
+                <button type="button" onClick={() => switchMode('forgot')} className="text-xs font-semibold text-ink">
+                  Forgot password?
+                </button>
+              )}
             </div>
-          )}
+            <PasswordInput
+              id="auth-password"
+              required
+              minLength={mode === 'signup' ? 6 : undefined}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className={fieldClass}
+            />
+          </div>
+        )}
 
-          {/* Password */}
-          {mode !== 'forgot' && (
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs text-gray-400 block">Password</label>
-                {mode === 'login' && (
-                  <button type="button" onClick={() => switchMode('forgot')} className="text-xs text-purple-600 font-medium">
-                    Forgot password?
-                  </button>
-                )}
-              </div>
-              <PasswordInput
-                required
-                minLength={mode === 'signup' ? 6 : undefined}
-                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={inputClass}
-              />
-            </div>
-          )}
+        {message && (
+          <p role={isError ? 'alert' : 'status'} className={`text-sm ${isError ? 'text-danger' : 'text-ink-2'}`}>{message}</p>
+        )}
 
-          {mode === 'forgot' && <div className="mb-2" />}
+        <button
+          type="submit"
+          disabled={loading}
+          className="press mt-2 w-full py-4 rounded-full bg-inverse text-on-inverse text-[15px] font-semibold disabled:opacity-50"
+        >
+          {loading ? 'Please wait…' : copy.button}
+        </button>
 
-          {/* Message */}
-          {message && (
-            <p className={`text-xs text-center mb-4 ${isError ? 'text-red-500' : 'text-purple-600'}`}>{message}</p>
-          )}
-
-          {/* Button */}
+        <p className="text-center text-sm text-ink-3 mt-2">
+          {mode === 'login' && "Don't have an account? "}
+          {mode === 'signup' && 'Already have an account? '}
+          {mode === 'forgot' && 'Remembered it? '}
           <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-purple-600 text-white rounded-xl text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
+            type="button"
+            onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
+            className="font-semibold text-ink"
           >
-            {loading ? 'Please wait...' : copy.button}
+            {mode === 'login' ? 'Sign up' : 'Log in'}
           </button>
-
-          {/* Toggle */}
-          <p className="text-center text-xs text-gray-400 mt-4">
-            {mode === 'login' && "Don't have an account? "}
-            {mode === 'signup' && 'Already have an account? '}
-            {mode === 'forgot' && 'Remembered it? '}
-            <button
-              type="button"
-              onClick={() => switchMode(mode === 'login' ? 'signup' : 'login')}
-              className="text-purple-600 font-medium"
-            >
-              {mode === 'login' ? 'Sign up' : 'Log in'}
-            </button>
-          </p>
-
-        </form>
-      </div>
-    </div>
+        </p>
+      </form>
+    </AuthShell>
   )
 }
 
