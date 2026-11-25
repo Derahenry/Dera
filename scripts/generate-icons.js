@@ -1,3 +1,4 @@
+// Regenerates the app icons in public/ from the SVG below. Run: npm run icons
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -8,8 +9,8 @@ const svg = `<svg width="512" height="512" viewBox="0 0 100 100" xmlns="http://w
 
 const buf = Buffer.from(svg)
 
-await sharp(buf).resize(192, 192).png().toFile(join(__dirname, 'icon-192.png'))
+await sharp(buf).resize(192, 192).png().toFile(join(__dirname, '..', 'public', 'icon-192.png'))
 console.log('✓ icon-192.png')
 
-await sharp(buf).resize(512, 512).png().toFile(join(__dirname, 'icon-512.png'))
+await sharp(buf).resize(512, 512).png().toFile(join(__dirname, '..', 'public', 'icon-512.png'))
 console.log('✓ icon-512.png')

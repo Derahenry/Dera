@@ -23,15 +23,17 @@ Amara is 19, in her second year at university, and has four BNPL plans across th
 | **Message your provider** | Pick a plan and what you need (more time, a pause, smaller payments). AI writes a short chat message or email, with each provider's real support contacts and free UK debt advice services. |
 | **Payment schedules** | Weekly, fortnightly or monthly instalments, with the next due date moving on as you pay. |
 | **Design** | Monochrome, phone-first design that follows your phone's light or dark setting, with an animated intro and onboarding. |
-| **Accounts** | Email sign-up and sign-in, password reset, and optional payment reminders. |
-| **Installable** | Can be added to a phone's home screen. |
+| **Payment reminders** | A phone notification 3 days before and on the day each payment is due, at 9am UK time, even when DERA is closed. Turn on, test or turn off in Settings. |
+| **Accounts** | Email sign-up and sign-in, password reset, and light, dark or system appearance. |
+| **Installable** | An Install button on Android and desktop Chrome, and Add to Home Screen steps on iPhone (needed there for reminders). |
 
 Open banking is shown as "Coming soon" until it can be built properly with a server-side token exchange.
 
 ## Tech stack
 
 - **Frontend:** React 19, Vite, Tailwind CSS 4
-- **Backend:** Supabase (authentication, Postgres with row-level security, realtime, Edge Functions)
+- **Backend:** Supabase (authentication, Postgres with row-level security, realtime, Edge Functions, Vault, pg_cron)
+- **Notifications:** Web Push from a Supabase Edge Function, scheduled daily with pg_cron
 - **AI:** Groq (`openai/gpt-oss-120b`), called only from a Supabase Edge Function
 - **Email:** Resend as the SMTP sender for sign-up and password emails
 - **Hosting:** Vercel, deployed automatically from `main`
@@ -42,6 +44,7 @@ Open banking is shown as "Coming soon" until it can be built properly with a ser
 - **AI runs on the server.** The app calls a Supabase Edge Function (`supabase/functions/ai-assist`), which only accepts signed-in users, builds the prompts itself (so it can only do DERA's two tasks), caps the text each request can send, and keeps the API key as a server secret.
 - **Daily AI limit.** Each person can make 30 AI requests a day, so one account can't use up the shared allowance.
 - **Fair comparisons.** Benchmark figures are worked out on the server from real debts, so they can't be faked from the browser.
+- **Reminder keys stay secret.** The private notification key and the daily job's secret are kept in Supabase Vault, readable only by the server. People can only see and remove their own devices.
 - **Security headers.** The site sends a Content Security Policy and blocks being shown inside other sites' frames.
 
 ## Running it locally
@@ -52,25 +55,37 @@ cd Dera
 npm install
 ```
 
-Create a `.env` file:
-
-```
-VITE_SUPABASE_URL=your-supabase-project-url
-VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
-```
-
-Then run:
+Copy `.env.example` to `.env` and fill in your Supabase URL and publishable key. Then run:
 
 ```bash
 npm run dev
 ```
 
-Apply the database changes in `supabase/migrations`, then deploy the Edge Function and set its secret for the AI features:
+### Backend setup (new Supabase project)
 
-```bash
-supabase functions deploy ai-assist
-supabase secrets set GROQ_API_KEY=your-groq-key
-```
+1. **Database:** run every file in `supabase/migrations` in date order.
+   `20261123_initial_schema.sql` is the starting point; the rest build on it.
+2. **AI features:** deploy the Edge Function and set its secret:
+   ```bash
+   supabase functions deploy ai-assist
+   supabase secrets set GROQ_API_KEY=your-groq-key
+   ```
+3. **Payment reminders:**
+   - Generate a VAPID key pair (for example `npx web-push generate-vapid-keys`).
+   - Store the keys and a random job secret in Vault:
+     ```sql
+     select vault.create_secret('<public key>', 'vapid_public_key');
+     select vault.create_secret('<private key>', 'vapid_private_key');
+     select vault.create_secret('<long random string>', 'reminders_cron_secret');
+     ```
+   - Put the public key in `VAPID_PUBLIC_KEY` in `src/push.js`.
+   - Deploy the function with JWT checking off (it checks the job secret or the user itself):
+     ```bash
+     supabase functions deploy send-reminders --no-verify-jwt
+     ```
+   - The daily job in `20261125_push_reminders.sql` calls this project's function URL; change it to yours.
+
+To regenerate the app icons, run `npm run icons`.
 
 ## Project structure
 
@@ -85,12 +100,24 @@ src/
   pendingPurchases.js   Saving and matching detected purchases
   PaymentPlan.jsx       Monthly plan against a budget
   Benchmarking.jsx      Anonymous comparison
+  OpenBanking.jsx       "Coming soon" screen
+  Auth.jsx              Sign up, log in, forgot password
+  ResetPassword.jsx     Set a new password from the email link
+  ai.js                 Calls the AI function and shows its messages
+  push.js               Payment reminders (Web Push) and the install prompt
   debtMath.js           Dates, schedules, amounts and validation
   providerHelp.js       Provider support contacts and free advice services
   ui.jsx                Shared components (icons, sheet, bottom bar)
+  index.css             Design tokens (light and dark), motion
+public/
+  sw.js                 Service worker: shows reminders, opens DERA on tap
+  manifest.json         Install details and icons
 supabase/
-  functions/ai-assist/  Server-side AI calls
-  migrations/           Database changes
+  functions/ai-assist/       Server-side AI calls, with the daily limit
+  functions/send-reminders/  Daily reminders and the Settings test
+  migrations/                Database changes, in date order
+scripts/
+  generate-icons.js     Rebuilds the app icons
 vercel.json             Security headers
 ```
 
@@ -101,8 +128,9 @@ vercel.json             Security headers
 - [x] AI provider messages and email reading, server-side with a daily limit
 - [x] Monochrome redesign with light and dark mode
 - [x] Detected purchases from pasted emails
+- [x] Payment reminders that arrive even when the app is closed
+- [x] Security headers and a daily AI limit
 - [ ] Forwarded emails feeding detected purchases automatically
-- [ ] Payment reminders that arrive even when the app is closed
 - [ ] Open banking via TrueLayer
 - [ ] Automated tests
 
