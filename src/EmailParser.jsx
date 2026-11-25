@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from './supabase'
+import { askAI } from './ai'
 import { validateDebt } from './debtMath'
 import DetectedCard from './DetectedCard'
 
@@ -38,19 +38,17 @@ function EmailParser({ onDetected, pending, actions, onDone }) {
     setDetectedId(null)
     setError('')
 
-    // The AI call runs in the ai-assist Edge Function, so the Groq key stays on the server.
-    const { data, error } = await supabase.functions.invoke('ai-assist', {
-      body: { task: 'parse-email', input: { emailText } },
-    })
-
-    if (error || !data?.result) {
-      setError('Could not read the email. Try copying more of the email text.')
+    const { result, error: aiError } = await askAI(
+      'parse-email', { emailText }, 'Could not read the email. Try copying more of the email text.',
+    )
+    if (aiError) {
+      setError(aiError)
       setLoading(false)
       return
     }
 
     // Tidy the AI's answer (known provider, sensible numbers) before it is saved.
-    const { debt } = validateDebt(data.result)
+    const { debt } = validateDebt(result)
     const saved = await onDetected(debt)
     setLoading(false)
     if (saved.error) {

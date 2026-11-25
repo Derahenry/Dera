@@ -11,6 +11,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 // llama-3.3-70b-versatile was shut down by Groq on 16 Aug 2026; this is their recommended replacement.
 const MODEL = 'openai/gpt-oss-120b'
+// AI requests each person can make per UK day (counted by use_ai_request in the database).
+const DAILY_LIMIT = 30
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -143,6 +145,19 @@ Deno.serve(async (req) => {
     wantsJson = true
   } else {
     return json({ error: 'Unknown task.' }, 400)
+  }
+
+  // Daily cap per person, checked only for valid requests, so one account can't use up the Groq allowance.
+  const { data: left, error: limitError } = await supabase.rpc('use_ai_request', { daily_limit: DAILY_LIMIT })
+  if (limitError) {
+    console.error('Usage check failed', limitError.message)
+    return json({ error: 'The AI service is busy. Try again in a minute.' }, 503)
+  }
+  if (left < 0) {
+    return json({
+      error: `You've used today's ${DAILY_LIMIT} AI requests. They reset at midnight.`,
+      code: 'daily_limit',
+    }, 429)
   }
 
   const groqRes = await fetch(GROQ_URL, {

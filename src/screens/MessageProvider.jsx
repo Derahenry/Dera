@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../supabase'
+import { askAI } from '../ai'
 import { Icon, ProviderBadge } from '../ui'
 import { daysUntil, formatGBP, formatLongDate, instalmentAmount, remaining } from '../debtMath'
 import { FREE_ADVICE, PROVIDER_HELP, RIGHTS_NOTE } from '../providerHelp'
@@ -68,29 +68,24 @@ function MessageProvider({ debts, userName, initialDebtId, onAddDebt }) {
     setLoading(true)
     setError('')
     setMessage('')
-    const { data, error: fnError } = await supabase.functions.invoke('ai-assist', {
-      body: {
-        task: 'letter',
-        input: {
-          provider: debt.provider,
-          item: debt.item,
-          total: debt.total,
-          remaining: remaining(debt),
-          next_amount: instalmentAmount(debt),
-          due_date: formatLongDate(debt.due_date),
-          reason,
-          request,
-          format,
-          name: format === 'email' ? userName : '',
-        },
-      },
-    })
+    const { result, error: aiError } = await askAI('letter', {
+      provider: debt.provider,
+      item: debt.item,
+      total: debt.total,
+      remaining: remaining(debt),
+      next_amount: instalmentAmount(debt),
+      due_date: formatLongDate(debt.due_date),
+      reason,
+      request,
+      format,
+      name: format === 'email' ? userName : '',
+    }, "Couldn't write your message. Try again.")
     setLoading(false)
-    if (fnError || !data?.result) {
-      setError("Couldn't write your message. Try again.")
+    if (aiError) {
+      setError(aiError)
       return
     }
-    setMessage(String(data.result).trim())
+    setMessage(String(result).trim())
   }
 
   const copy = async () => {
